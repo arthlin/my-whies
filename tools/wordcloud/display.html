@@ -134,7 +134,8 @@
 <div id="setup">
   <h1>📊 即時文字雲</h1>
   <input id="title-input" type="text" placeholder="場次名稱（例：上午場）" maxlength="20">
-  <button onclick="startSession()">開新場次</button>
+  <button id="start-btn" onclick="startSession()">開新場次</button>
+  <div id="start-error" style="color:#f87171;font-size:0.9rem;display:none;"></div>
 </div>
 
 <div id="live">
@@ -192,11 +193,25 @@
     sessionId = genSessionId();
     currentRound = 1;
 
-    await db.collection('sessions').doc(sessionId).set({
-      title,
-      currentRound: 1,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const btn = document.getElementById('start-btn');
+    const errDiv = document.getElementById('start-error');
+    btn.disabled = true;
+    btn.textContent = '建立中…';
+    errDiv.style.display = 'none';
+
+    try {
+      await db.collection('sessions').doc(sessionId).set({
+        title,
+        currentRound: 1,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (e) {
+      errDiv.textContent = '建立失敗：' + e.message;
+      errDiv.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '開新場次';
+      return;
+    }
 
     document.getElementById('setup').style.display = 'none';
     const live = document.getElementById('live');
