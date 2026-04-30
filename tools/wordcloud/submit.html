@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>填詞</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f0f4ff;
+      font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 36px 28px 28px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .icon { font-size: 2.4rem; margin-bottom: 8px; }
+    h1 { font-size: 1.4rem; color: #1a1a2e; margin-bottom: 6px; }
+    .subtitle { color: #888; font-size: 0.95rem; margin-bottom: 28px; }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 18px;
+      font-size: 1.5rem;
+      border: 2px solid #dde3f0;
+      border-radius: 12px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+      letter-spacing: 2px;
+    }
+    input[type="text"]:focus { border-color: #4a9eff; }
+
+    .error {
+      color: #e55;
+      font-size: 0.88rem;
+      margin-top: 8px;
+      min-height: 20px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 14px;
+      padding: 18px;
+      font-size: 1.15rem;
+      background: #4a9eff;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: bold;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    button:hover:not(:disabled) { background: #2a7edf; }
+    button:disabled { background: #b0c4e8; cursor: default; }
+
+    .success-banner {
+      display: none;
+      margin-top: 14px;
+      padding: 12px;
+      background: #e8fdf0;
+      border-radius: 10px;
+      color: #16a34a;
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    .submitted-section {
+      margin-top: 24px;
+      text-align: left;
+    }
+    .submitted-section h3 {
+      font-size: 0.82rem;
+      color: #aaa;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      display: inline-block;
+      background: #eef3ff;
+      color: #4a6cf7;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.92rem;
+    }
+
+    /* 找不到場次 / 錯誤狀態 */
+    .alert {
+      background: #fff3f3;
+      border: 1px solid #ffcdd2;
+      border-radius: 10px;
+      padding: 16px;
+      color: #c0392b;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">✏️</div>
+  <h1>填入一個詞</h1>
+  <p class="subtitle" id="session-name">載入中…</p>
+
+  <div id="form-area">
+    <input type="text" id="word-input" placeholder="請輸入一個詞" maxlength="10" autocomplete="off" autocorrect="off">
+    <div class="error" id="error-msg"></div>
+    <button id="submit-btn" onclick="submitWord()">送出</button>
+    <div class="success-banner" id="success-banner">✓ 已送出！</div>
+  </div>
+
+  <div class="submitted-section" id="submitted-section" style="display:none">
+    <h3>你送出的詞</h3>
+    <div class="tags" id="tags"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyD30cV4rdx1Ys4J4eGnznPieUUhOhWhHrQ",
+    authDomain: "teachstudy-b8b64.firebaseapp.com",
+    projectId: "teachstudy-b8b64",
+    storageBucket: "teachstudy-b8b64.firebasestorage.app",
+    messagingSenderId: "195283799004",
+    appId: "1:195283799004:web:b212e67d4e30ac95dddd19"
+  });
+  const db = firebase.firestore();
+
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get('s');
+  let currentRound = 1;
+  let submittedWords = [];
+
+  if (!sessionId) {
+    showAlert('連結有誤，請重新掃描 QR Code。');
+  } else {
+    loadSession();
+  }
+
+  async function loadSession() {
+    try {
+      const doc = await db.collection('sessions').doc(sessionId).get();
+      if (!doc.exists) {
+        showAlert('找不到此場次，請確認 QR Code 是否正確。');
+        return;
+      }
+      const data = doc.data();
+      document.getElementById('session-name').textContent = data.title || '文字雲活動';
+      currentRound = data.currentRound || 1;
+      document.getElementById('word-input').focus();
+
+      // 主持端清空時同步重置
+      db.collection('sessions').doc(sessionId).onSnapshot(snap => {
+        if (!snap.exists) return;
+        const newRound = snap.data().currentRound || 1;
+        if (newRound !== currentRound) {
+          currentRound = newRound;
+          submittedWords = [];
+          updateTags();
+        }
+      });
+    } catch (e) {
+      showAlert('載入失敗，請稍後再試。');
+    }
+  }
+
+  async function submitWord() {
+    const input = document.getElementById('word-input');
+    const word = input.value.trim();
+
+    if (!word) {
+      document.getElementById('error-msg').textContent = '請輸入一個詞';
+      return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    document.getElementById('error-msg').textContent = '';
+
+    try {
+      await db.collection('sessions').doc(sessionId).collection('words').add({
+        word,
+        round: currentRound,
+        ts: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      submittedWords.push(word);
+      input.value = '';
+      showSuccess();
+      updateTags();
+    } catch (e) {
+      document.getElementById('error-msg').textContent = '送出失敗，請再試一次';
+    } finally {
+      btn.disabled = false;
+      input.focus();
+    }
+  }
+
+  function showSuccess() {
+    const banner = document.getElementById('success-banner');
+    banner.style.display = 'block';
+    setTimeout(() => banner.style.display = 'none', 1800);
+  }
+
+  function updateTags() {
+    const section = document.getElementById('submitted-section');
+    if (submittedWords.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+    document.getElementById('tags').innerHTML =
+      submittedWords.map(w => `<span class="tag">${w}</span>`).join('');
+  }
+
+  function showAlert(msg) {
+    document.getElementById('session-name').textContent = '';
+    document.getElementById('form-area').innerHTML = `<div class="alert">${msg}</div>`;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitWord();
+  });
+</script>
+</body>
+</html>

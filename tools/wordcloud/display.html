@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文字雲 — 主持端</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f0f23;
+      color: #eee;
+      font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 開場設定 */
+    #setup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 20px;
+    }
+    #setup h1 { font-size: 2.2rem; color: #7eb8f7; }
+    #setup input {
+      padding: 14px 20px;
+      font-size: 1.2rem;
+      border: 2px solid #444;
+      border-radius: 10px;
+      background: #1e1e3a;
+      color: #eee;
+      width: 340px;
+      text-align: center;
+      font-family: inherit;
+      outline: none;
+    }
+    #setup input:focus { border-color: #4a9eff; }
+    #setup button {
+      padding: 14px 48px;
+      font-size: 1.3rem;
+      background: #4a9eff;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    #setup button:hover { background: #2a7edf; }
+
+    /* 直播畫面 */
+    #live { display: none; flex: 1; flex-direction: column; }
+
+    #topbar {
+      display: flex;
+      align-items: center;
+      padding: 10px 20px;
+      background: #1a1a2e;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    #session-title { font-size: 1.2rem; color: #7eb8f7; flex: 1; }
+    #word-count { font-size: 0.95rem; color: #aaa; white-space: nowrap; }
+    #topbar button {
+      padding: 8px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+    #btn-clear { background: #c0392b; color: white; }
+    #btn-clear:hover { background: #e74c3c; }
+    #btn-new { background: #555; color: white; }
+    #btn-new:hover { background: #777; }
+
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    #wordcloud-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #wc {
+      position: absolute;
+      top: 0; left: 0;
+    }
+    #empty-hint {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #333;
+      font-size: 1.4rem;
+      pointer-events: none;
+    }
+
+    #qr-panel {
+      width: 200px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 12px;
+      background: #1a1a2e;
+      gap: 10px;
+      border-left: 1px solid #2a2a4a;
+    }
+    #qr-panel .label { font-size: 0.85rem; color: #aaa; text-align: center; }
+    #qrcode { background: white; padding: 8px; border-radius: 8px; }
+    #session-code {
+      font-size: 1.6rem;
+      font-weight: bold;
+      color: #ffd700;
+      letter-spacing: 4px;
+    }
+    #submit-url {
+      font-size: 0.6rem;
+      color: #555;
+      word-break: break-all;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div id="setup">
+  <h1>📊 即時文字雲</h1>
+  <input id="title-input" type="text" placeholder="場次名稱（例：上午場）" maxlength="20">
+  <button onclick="startSession()">開新場次</button>
+</div>
+
+<div id="live">
+  <div id="topbar">
+    <span id="session-title"></span>
+    <span id="word-count">0 筆</span>
+    <button id="btn-clear" onclick="clearWords()">清空</button>
+    <button id="btn-new" onclick="newSession()">新場次</button>
+  </div>
+  <div id="main">
+    <div id="wordcloud-area">
+      <canvas id="wc"></canvas>
+      <div id="empty-hint">等待學員填詞中…</div>
+    </div>
+    <div id="qr-panel">
+      <div class="label">學員掃碼填詞</div>
+      <div id="qrcode"></div>
+      <div id="session-code"></div>
+      <div id="submit-url"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyD30cV4rdx1Ys4J4eGnznPieUUhOhWhHrQ",
+    authDomain: "teachstudy-b8b64.firebaseapp.com",
+    projectId: "teachstudy-b8b64",
+    storageBucket: "teachstudy-b8b64.firebasestorage.app",
+    messagingSenderId: "195283799004",
+    appId: "1:195283799004:web:b212e67d4e30ac95dddd19"
+  });
+  const db = firebase.firestore();
+
+  let sessionId = null;
+  let currentRound = 1;
+  let unsubscribe = null;
+  let renderTimeout = null;
+  let qrInstance = null;
+
+  function genSessionId() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let id = '';
+    for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    return id;
+  }
+
+  async function startSession() {
+    const title = document.getElementById('title-input').value.trim() || '文字雲活動';
+    sessionId = genSessionId();
+    currentRound = 1;
+
+    await db.collection('sessions').doc(sessionId).set({
+      title,
+      currentRound: 1,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    document.getElementById('setup').style.display = 'none';
+    const live = document.getElementById('live');
+    live.style.display = 'flex';
+    document.getElementById('session-title').textContent = title;
+
+    // 計算 submit URL（相容 GitHub Pages 與本機）
+    const base = window.location.href.replace(/display\.html.*$/, '');
+    const submitUrl = `${base}submit.html?s=${sessionId}`;
+    document.getElementById('submit-url').textContent = submitUrl;
+    document.getElementById('session-code').textContent = sessionId;
+
+    if (qrInstance) {
+      document.getElementById('qrcode').innerHTML = '';
+    }
+    qrInstance = new QRCode(document.getElementById('qrcode'), {
+      text: submitUrl,
+      width: 160,
+      height: 160,
+      colorDark: '#000000',
+      colorLight: '#ffffff'
+    });
+
+    resizeCanvas();
+    listenWords();
+  }
+
+  function resizeCanvas() {
+    const area = document.getElementById('wordcloud-area');
+    const canvas = document.getElementById('wc');
+    canvas.width = area.clientWidth;
+    canvas.height = area.clientHeight;
+  }
+
+  function listenWords() {
+    if (unsubscribe) unsubscribe();
+    unsubscribe = db.collection('sessions').doc(sessionId)
+      .collection('words')
+      .where('round', '==', currentRound)
+      .onSnapshot(snap => {
+        const freq = {};
+        snap.forEach(doc => {
+          const w = (doc.data().word || '').trim();
+          if (w) freq[w] = (freq[w] || 0) + 1;
+        });
+
+        document.getElementById('word-count').textContent = `${snap.size} 筆`;
+        document.getElementById('empty-hint').style.display = snap.size === 0 ? 'block' : 'none';
+
+        clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => renderCloud(freq), 400);
+      });
+  }
+
+  function renderCloud(freq) {
+    const canvas = document.getElementById('wc');
+    const entries = Object.entries(freq);
+    if (entries.length === 0) {
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    const maxCount = Math.max(...entries.map(([, v]) => v));
+    const list = entries.map(([word, count]) => [
+      word,
+      Math.round(20 + (count / maxCount) * 72)
+    ]);
+
+    WordCloud(canvas, {
+      list,
+      backgroundColor: '#0f0f23',
+      color: () => `hsl(${Math.floor(Math.random() * 60 + 180)}, 80%, 65%)`,
+      fontFamily: '"Microsoft JhengHei", "微軟正黑體", sans-serif',
+      fontWeight: 'bold',
+      rotateRatio: 0,
+      shrinkToFit: true,
+      drawOutOfBound: false,
+      minSize: 14,
+      gridSize: 8
+    });
+  }
+
+  async function clearWords() {
+    if (!sessionId) return;
+    if (!confirm('確定清空所有詞彙？（資料仍保留，僅清除畫面）')) return;
+    currentRound++;
+    await db.collection('sessions').doc(sessionId).update({ currentRound });
+    listenWords();
+  }
+
+  function newSession() {
+    if (unsubscribe) unsubscribe();
+    sessionId = null;
+    currentRound = 1;
+    document.getElementById('qrcode').innerHTML = '';
+    document.getElementById('live').style.display = 'none';
+    document.getElementById('setup').style.display = 'flex';
+    document.getElementById('title-input').value = '';
+    document.getElementById('word-count').textContent = '0 筆';
+  }
+
+  window.addEventListener('resize', () => {
+    if (sessionId) resizeCanvas();
+  });
+</script>
+</body>
+</html>

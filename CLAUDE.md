@@ -16,7 +16,7 @@
 
 ## 工具清單
 （之後加新工具時會自動更新）
-- （尚無）
+- **wordcloud**（`tools/wordcloud/`）：即時文字雲活動工具。`display.html` 主持端（投影用），`submit.html` 學員掃碼填詞端。後端用 Firebase Firestore（teachstudy-b8b64），支援多場次隔離與清空。
 
 ## 工作注意事項
 - 學生資料一律去識別化（只用座號 + 班級代號）
