@@ -369,7 +369,7 @@
 
 <!-- ══ Header ══ -->
 <header>
-  <div class="app-icon"><img src="../../logo/square_icon_logo.png" alt="logo"></div>
+  <div class="app-icon"><img src="../../logo/circular_icon_logo.png" alt="logo"></div>
   <div>
     <h1>貼圖裁切去背工具</h1>
     <div class="subtitle">上傳圖片 → 框選裁切 → 去背 → 下載 ZIP</div>
@@ -476,9 +476,10 @@
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
 <script type="module">
-import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/bundle.browser.esm.js';
-
+// 去背函式庫改為使用時才動態載入，避免 CDN 失敗導致整個 script 無法執行
+const BG_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/bundle.browser.esm.js';
 const BG_CDN = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/';
+let removeBackground = null;
 
 // ── State ──
 let imgEl    = null;
@@ -762,6 +763,10 @@ async function cropAndAdd() {
   if (bgToggle.checked) {
     showLoading('去背處理中⋯（首次需下載模型約 40 MB）');
     try {
+      if (!removeBackground) {
+        const mod = await import(BG_URL);
+        removeBackground = mod.removeBackground;
+      }
       const inputBlob = await new Promise(r => oc.toBlob(r, 'image/png'));
       blob = await removeBackground(inputBlob, { publicPath: BG_CDN });
     } catch (err) {
