@@ -33,7 +33,7 @@
       overflow: hidden;
       flex-shrink: 0;
     }
-    .app-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .app-icon img { width: 100%; height: 100%; object-fit: cover; display: block; mix-blend-mode: multiply; }
     h1 { font-size: 16px; font-weight: 700; color: #0d2b45; }
     .subtitle { font-size: 11px; color: #4a7a9b; margin-top: 1px; }
 
@@ -258,10 +258,9 @@
       font-size: 11px;
       font-weight: 700;
       color: #2d6a8a;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
       white-space: nowrap;
       flex-shrink: 0;
+      align-self: center;
     }
     .strip-scroll {
       display: flex;
@@ -407,6 +406,12 @@
     </label>
   </div>
 
+  <div class="toggle-wrap" id="tolerance-wrap" style="display:none">
+    <span style="font-size:12px;color:#2d6a8a;">容差</span>
+    <input type="range" id="tolerance-slider" min="5" max="120" value="30" style="width:72px;accent-color:#2980b9;">
+    <span id="tolerance-val" style="font-size:12px;min-width:24px;color:#1a3a5c;">30</span>
+  </div>
+
   <div class="toolbar-sep"></div>
 
   <button class="btn-toolbar btn-tb-detect" id="btn-auto" onclick="autoDetect()" disabled>✦ 自動偵測</button>
@@ -476,10 +481,48 @@
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
 <script type="module">
-// 去背函式庫改為使用時才動態載入，避免 CDN 失敗導致整個 script 無法執行
-const BG_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/bundle.browser.esm.js';
-const BG_CDN = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/';
-let removeBackground = null;
+// ── 純 Canvas 去背（flood fill，不需外部函式庫）──
+function removeBgCanvas(src, tolerance) {
+  const oc = document.createElement('canvas');
+  oc.width = src.width; oc.height = src.height;
+  const octx = oc.getContext('2d');
+  octx.drawImage(src, 0, 0);
+  const img = octx.getImageData(0, 0, oc.width, oc.height);
+  const data = img.data;
+  const W = oc.width, H = oc.height;
+
+  // 從四個角取樣背景色（取平均）
+  function px(x, y) { const i=(y*W+x)*4; return [data[i],data[i+1],data[i+2],data[i+3]]; }
+  const corners = [[0,0],[W-1,0],[0,H-1],[W-1,H-1]].map(([x,y])=>px(x,y));
+  const bg = corners.reduce((a,c)=>[a[0]+c[0],a[1]+c[1],a[2]+c[2]],
+    [0,0,0]).map(v=>v/corners.length);
+
+  function diff(i) {
+    return Math.abs(data[i]-bg[0]) + Math.abs(data[i+1]-bg[1]) + Math.abs(data[i+2]-bg[2]);
+  }
+
+  // BFS flood fill 從四邊出發
+  const visited = new Uint8Array(W * H);
+  const queue = [];
+  for (let x=0;x<W;x++) { queue.push(x,0); queue.push(x,H-1); }
+  for (let y=1;y<H-1;y++) { queue.push(0,y); queue.push(W-1,y); }
+
+  let qi = 0;
+  while (qi < queue.length) {
+    const x = queue[qi++], y = queue[qi++];
+    if (x<0||x>=W||y<0||y>=H) continue;
+    const idx = y*W+x;
+    if (visited[idx]) continue;
+    visited[idx] = 1;
+    const i = idx*4;
+    if (data[i+3] < 10 || diff(i) <= tolerance) {
+      data[i+3] = 0;
+      queue.push(x-1,y, x+1,y, x,y-1, x,y+1);
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  return oc;
+}
 
 // ── State ──
 let imgEl    = null;
@@ -506,7 +549,10 @@ const inputX      = document.getElementById('input-x');
 const inputY      = document.getElementById('input-y');
 const inputW      = document.getElementById('input-w');
 const inputH      = document.getElementById('input-h');
-const bgToggle    = document.getElementById('bg-remove-toggle');
+const bgToggle       = document.getElementById('bg-remove-toggle');
+const toleranceWrap  = document.getElementById('tolerance-wrap');
+const toleranceSlider= document.getElementById('tolerance-slider');
+const toleranceVal   = document.getElementById('tolerance-val');
 const loadingEl   = document.getElementById('loading-overlay');
 const loadingTxt  = document.getElementById('loading-text');
 const stripScroll = document.getElementById('strip-scroll');
@@ -521,6 +567,14 @@ window.resetFrame    = resetFrame;
 window.downloadZip   = downloadZip;
 window.clearStickers = clearStickers;
 window.resetAll      = resetAll;
+
+// ── 去背 toggle → 顯示/隱藏容差滑桿 ──
+bgToggle.addEventListener('change', () => {
+  toleranceWrap.style.display = bgToggle.checked ? 'flex' : 'none';
+});
+toleranceSlider.addEventListener('input', () => {
+  toleranceVal.textContent = toleranceSlider.value;
+});
 
 // ── File input ──
 document.getElementById('choose-btn').addEventListener('click', e => {
@@ -761,14 +815,11 @@ async function cropAndAdd() {
 
   let blob;
   if (bgToggle.checked) {
-    showLoading('去背處理中⋯（首次需下載模型約 40 MB）');
+    showLoading('去背處理中⋯');
     try {
-      if (!removeBackground) {
-        const mod = await import(BG_URL);
-        removeBackground = mod.removeBackground;
-      }
-      const inputBlob = await new Promise(r => oc.toBlob(r, 'image/png'));
-      blob = await removeBackground(inputBlob, { publicPath: BG_CDN });
+      const tolerance = parseInt(toleranceSlider.value) || 30;
+      const result = removeBgCanvas(oc, tolerance);
+      blob = await new Promise(r => result.toBlob(r, 'image/png'));
     } catch (err) {
       hideLoading();
       alert('去背失敗：' + err.message);
