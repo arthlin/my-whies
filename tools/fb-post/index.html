@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FB 貼文生成器</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #ddeef8;
+      color: #1a3a5c;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #b3d4ec;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #90bcd8;
+    }
+
+    header .icon { font-size: 1.5rem; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header p { font-size: 0.8rem; color: #3a6a9c; margin-top: 1px; }
+
+    main {
+      flex: 1;
+      padding: 20px;
+      max-width: 800px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #3a6a9c;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #2a5a8c;
+    }
+
+    input[type="text"], input[type="password"], textarea, select {
+      width: 100%;
+      border: 1.5px solid #b3d4ec;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: #1a3a5c;
+      background: #f5f9fd;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: #5599cc;
+      background: white;
+    }
+
+    textarea { resize: vertical; line-height: 1.6; }
+
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; }
+
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #7a9abf;
+      margin-top: 3px;
+    }
+
+    .api-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .api-row input { flex: 1; }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    button:hover { opacity: 0.88; }
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: #3a82c4;
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #b3d4ec;
+      color: #1a3a5c;
+    }
+
+    .btn-copy {
+      background: #e8f4e8;
+      color: #2a6a2a;
+      font-size: 0.82rem;
+      padding: 6px 14px;
+    }
+
+    .btn-save {
+      background: #3a82c4;
+      color: white;
+      font-size: 0.82rem;
+      padding: 6px 14px;
+    }
+
+    #generate-btn {
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+    }
+
+    .output-area {
+      display: none;
+    }
+
+    .output-area.visible { display: block; }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .output-text {
+      background: #f5f9fd;
+      border: 1.5px solid #b3d4ec;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 0.92rem;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      min-height: 100px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 24px;
+      color: #5599cc;
+      font-size: 0.9rem;
+    }
+
+    .loading-dot {
+      display: inline-block;
+      animation: blink 1.2s infinite;
+    }
+
+    .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.2; }
+      40% { opacity: 1; }
+    }
+
+    .error-msg {
+      background: #fef0f0;
+      border: 1.5px solid #f5c0c0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #c04040;
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .error-msg.visible { display: block; }
+
+    .tone-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1.5px solid #b3d4ec;
+      background: #f5f9fd;
+      font-size: 0.82rem;
+      cursor: pointer;
+      color: #2a5a8c;
+      transition: all 0.15s;
+    }
+
+    .chip.active {
+      background: #3a82c4;
+      border-color: #3a82c4;
+      color: white;
+    }
+
+    .char-count {
+      font-size: 0.75rem;
+      color: #7a9abf;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    footer {
+      text-align: center;
+      padding: 12px;
+      font-size: 0.75rem;
+      color: #7a9abf;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="icon">📣</span>
+  <div>
+    <h1>FB 貼文生成器</h1>
+    <p>輸入活動資訊，自動生成 Facebook 貼文草稿</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- API 金鑰 -->
+  <div class="card">
+    <h2>⚙️ 設定</h2>
+    <div class="field">
+      <label>Anthropic API Key</label>
+      <div class="api-row">
+        <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off">
+        <button class="btn-secondary" onclick="saveApiKey()">儲存</button>
+      </div>
+      <p class="hint">金鑰只存在你的瀏覽器，不會上傳。</p>
+    </div>
+  </div>
+
+  <!-- 活動資訊 -->
+  <div class="card">
+    <h2>📋 活動資訊</h2>
+
+    <div class="field">
+      <label>活動名稱 <span style="color:#c04040">*</span></label>
+      <input type="text" id="activity-name" placeholder="例：114年母親節感恩活動">
+    </div>
+
+    <div class="field">
+      <label>主要流程 / 活動描述 <span style="color:#c04040">*</span></label>
+      <textarea id="activity-desc" rows="5" placeholder="例：
+・全校師生一起製作感恩卡片給媽媽
+・六年級同學帶領低年級完成手工藝作品
+・校長帶領全體在操場獻唱感恩的心
+・活動結束後學生將卡片帶回家給父母"></textarea>
+      <div class="char-count" id="desc-count">0 字</div>
+    </div>
+
+    <div class="field">
+      <label>補充說明（選填）</label>
+      <input type="text" id="extra-info" placeholder="例：天氣晴朗、全校約200位師生參與、獲得家長熱烈迴響">
+    </div>
+  </div>
+
+  <!-- 貼文風格 -->
+  <div class="card">
+    <h2>🎨 貼文風格</h2>
+    <div class="field">
+      <label>語氣</label>
+      <div class="tone-chips">
+        <span class="chip active" data-tone="溫馨感人">溫馨感人</span>
+        <span class="chip" data-tone="活潑有趣">活潑有趣</span>
+        <span class="chip" data-tone="正式莊重">正式莊重</span>
+        <span class="chip" data-tone="輕鬆親切">輕鬆親切</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>包含 hashtag</label>
+      <div class="tone-chips">
+        <span class="chip active" data-hash="yes">是</span>
+        <span class="chip" data-hash="no">否</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 生成按鈕 -->
+  <button class="btn-primary" id="generate-btn" onclick="generate()">✨ 生成貼文草稿</button>
+
+  <!-- 錯誤訊息 -->
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- 輸出 -->
+  <div class="card output-area" id="output-area">
+    <div class="output-header">
+      <h2>📝 貼文草稿</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn-copy" onclick="copyText()">📋 複製</button>
+        <button class="btn-secondary" style="font-size:0.82rem;padding:6px 14px" onclick="regenerate()">🔄 重新生成</button>
+      </div>
+    </div>
+    <div class="output-text" id="output-text"></div>
+  </div>
+
+</main>
+
+<footer>雲海國小班級工具 · my-whies</footer>
+
+<script>
+  // 讀取儲存的 API key
+  const keyInput = document.getElementById('api-key');
+  const saved = localStorage.getItem('anthropic_api_key');
+  if (saved) keyInput.value = saved;
+
+  function saveApiKey() {
+    const val = keyInput.value.trim();
+    if (!val) return;
+    localStorage.setItem('anthropic_api_key', val);
+    keyInput.style.borderColor = '#5cb85c';
+    setTimeout(() => keyInput.style.borderColor = '', 1500);
+  }
+
+  // 字數統計
+  const descEl = document.getElementById('activity-desc');
+  const countEl = document.getElementById('desc-count');
+  descEl.addEventListener('input', () => {
+    countEl.textContent = descEl.value.length + ' 字';
+  });
+
+  // Chip 切換
+  document.querySelectorAll('[data-tone]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('[data-tone]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('[data-hash]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('[data-hash]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+
+  function getTone() {
+    return document.querySelector('[data-tone].active')?.dataset.tone || '溫馨感人';
+  }
+
+  function getHashtag() {
+    return document.querySelector('[data-hash].active')?.dataset.hash === 'yes';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function hideError() {
+    document.getElementById('error-msg').classList.remove('visible');
+  }
+
+  function showLoading() {
+    const out = document.getElementById('output-area');
+    const text = document.getElementById('output-text');
+    out.classList.add('visible');
+    text.innerHTML = '<div class="loading">生成中<span class="loading-dot">●</span><span class="loading-dot">●</span><span class="loading-dot">●</span></div>';
+  }
+
+  async function generate() {
+    const apiKey = keyInput.value.trim();
+    const name = document.getElementById('activity-name').value.trim();
+    const desc = document.getElementById('activity-desc').value.trim();
+    const extra = document.getElementById('extra-info').value.trim();
+    const tone = getTone();
+    const withHash = getHashtag();
+
+    hideError();
+
+    if (!apiKey) { showError('請先輸入 Anthropic API Key'); return; }
+    if (!name) { showError('請輸入活動名稱'); return; }
+    if (!desc) { showError('請輸入活動流程描述'); return; }
+
+    showLoading();
+    document.getElementById('generate-btn').disabled = true;
+
+    const hashInstruction = withHash
+      ? '貼文結尾加上 3–5 個適合的繁體中文 hashtag（例：#雲海國小 #親師合作）。'
+      : '不要加 hashtag。';
+
+    const prompt = `你是雲海國小的行政助理，幫校長撰寫 Facebook 學校粉專貼文。
+
+活動名稱：${name}
+活動描述：
+${desc}
+${extra ? `補充說明：${extra}` : ''}
+
+請以「${tone}」的語氣，寫一篇約 150–250 字的 Facebook 貼文。
+要求：
+- 開頭吸引人，不要用「各位家長好」等制式開場
+- 內容真實自然，體現學校溫度
+- 段落清晰，適合 Facebook 閱讀節奏
+- ${hashInstruction}
+
+直接輸出貼文內容，不要加說明或前言。`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-calls': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const text = data.content?.[0]?.text || '';
+      document.getElementById('output-text').textContent = text;
+
+    } catch (e) {
+      document.getElementById('output-area').classList.remove('visible');
+      showError('生成失敗：' + e.message);
+    } finally {
+      document.getElementById('generate-btn').disabled = false;
+    }
+  }
+
+  function regenerate() {
+    generate();
+  }
+
+  async function copyText() {
+    const text = document.getElementById('output-text').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = event.target;
+      btn.textContent = '✅ 已複製';
+      setTimeout(() => btn.textContent = '📋 複製', 2000);
+    } catch {
+      alert('請手動複製：\n\n' + text);
+    }
+  }
+</script>
+
+</body>
+</html>
