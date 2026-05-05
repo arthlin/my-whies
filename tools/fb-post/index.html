@@ -568,7 +568,7 @@
       const pngFile = await toPngFile(originalFile);
 
       const response = await client.images.edit({
-        model: 'gpt-image-2',
+        model: 'dall-e-2',
         image: pngFile,
         prompt: STYLE_PROMPTS[style],
         n: 1,
