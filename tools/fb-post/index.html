@@ -602,12 +602,10 @@
         prompt: finalPrompt,
         n: 1,
         size: '1024x1024',
-        quality: 'low',
-        response_format: 'b64_json'
+        quality: 'low'
       });
 
-      const b64 = imgResp.data[0].b64_json;
-      finalPhotoDataUrl = 'data:image/png;base64,' + b64;
+      finalPhotoDataUrl = imgResp.data[0].url;
 
       const img = document.createElement('img');
       img.src = finalPhotoDataUrl;
