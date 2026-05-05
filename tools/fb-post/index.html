@@ -261,7 +261,7 @@
     <div class="field">
       <label>Anthropic API Key</label>
       <div class="api-row">
-        <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off">
+        <input type="password" id="api-key" placeholder="sk-..." autocomplete="off">
         <button class="btn-secondary" onclick="saveApiKey()">儲存</button>
       </div>
       <p class="hint">金鑰只存在你的瀏覽器，不會上傳。</p>
@@ -337,17 +337,17 @@
 <footer>雲海國小班級工具 · my-whies</footer>
 
 <script type="module">
-  import Anthropic from 'https://esm.sh/@anthropic-ai/sdk';
+  import OpenAI from 'https://esm.sh/openai';
 
   // 讀取儲存的 API key
   const keyInput = document.getElementById('api-key');
-  const saved = localStorage.getItem('anthropic_api_key');
+  const saved = localStorage.getItem('openai_api_key');
   if (saved) keyInput.value = saved;
 
   window.saveApiKey = function() {
     const val = keyInput.value.trim();
     if (!val) return;
-    localStorage.setItem('anthropic_api_key', val);
+    localStorage.setItem('openai_api_key', val);
     keyInput.style.borderColor = '#5cb85c';
     setTimeout(() => keyInput.style.borderColor = '', 1500);
   };
@@ -409,7 +409,7 @@
 
     hideError();
 
-    if (!apiKey) { showError('請先輸入 Anthropic API Key'); return; }
+    if (!apiKey) { showError('請先輸入 OpenAI API Key'); return; }
     if (!name) { showError('請輸入活動名稱'); return; }
     if (!desc) { showError('請輸入活動流程描述'); return; }
 
@@ -437,18 +437,18 @@ ${extra ? `補充說明：${extra}` : ''}
 直接輸出貼文內容，不要加說明或前言。`;
 
     try {
-      const client = new Anthropic({
+      const client = new OpenAI({
         apiKey,
         dangerouslyAllowBrowser: true
       });
 
-      const message = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
         max_tokens: 1024,
         messages: [{ role: 'user', content: prompt }]
       });
 
-      const text = message.content?.[0]?.text || '';
+      const text = completion.choices?.[0]?.message?.content || '';
       document.getElementById('output-text').textContent = text;
 
     } catch (e) {
