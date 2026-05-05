@@ -554,29 +554,59 @@
     const btn = document.getElementById('convert-btn');
     const status = document.getElementById('convert-status');
     btn.disabled = true;
-    status.textContent = '轉換中，約需 15–30 秒…';
 
     const resultBox = document.getElementById('result-box');
     const resultArea = document.getElementById('result-preview-area');
     resultBox.style.display = 'block';
-    resultArea.innerHTML = '<div class="photo-loading"><span style="font-size:1.5rem">🎨</span><span>AI 轉換中…</span></div>';
 
     try {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
-      // 將圖片轉為 PNG File
-      const pngFile = await toPngFile(originalFile);
+      // 步驟一：用 GPT-4o-mini 視覺分析照片場景
+      status.textContent = '步驟 1/2：分析照片場景…';
+      resultArea.innerHTML = '<div class="photo-loading"><span style="font-size:1.5rem">🔍</span><span>分析照片中…</span></div>';
 
-      const response = await client.images.edit({
-        model: 'dall-e-2',
-        image: pngFile,
-        prompt: STYLE_PROMPTS[style],
+      const dataUrl = await fileToDataUrl(originalFile);
+      const base64 = dataUrl.split(',')[1];
+      const mimeType = originalFile.type || 'image/jpeg';
+
+      const visionResp = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'low' }
+            },
+            {
+              type: 'text',
+              text: 'Describe this photo scene in detail for image generation: setting, number of people, activities, clothing colors, background elements, lighting, mood. Be specific but concise (under 120 words). Do not mention names or faces.'
+            }
+          ]
+        }]
+      });
+
+      const sceneDesc = visionResp.choices[0].message.content;
+
+      // 步驟二：用 gpt-image-2 依場景描述 + 風格生成插畫
+      status.textContent = '步驟 2/2：生成插畫，約需 20 秒…';
+      resultArea.innerHTML = '<div class="photo-loading"><span style="font-size:1.5rem">🎨</span><span>生成插畫中…</span></div>';
+
+      const styleInstruction = STYLE_PROMPTS[style];
+      const finalPrompt = `${styleInstruction}\n\nScene to illustrate: ${sceneDesc}`;
+
+      const imgResp = await client.images.generate({
+        model: 'gpt-image-2',
+        prompt: finalPrompt,
         n: 1,
         size: '1024x1024',
+        quality: 'low',
         response_format: 'b64_json'
       });
 
-      const b64 = response.data[0].b64_json;
+      const b64 = imgResp.data[0].b64_json;
       finalPhotoDataUrl = 'data:image/png;base64,' + b64;
 
       const img = document.createElement('img');
@@ -600,6 +630,15 @@
       btn.disabled = false;
     }
   };
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   async function toPngFile(file) {
     return new Promise((resolve, reject) => {
