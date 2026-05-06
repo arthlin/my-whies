@@ -111,82 +111,8 @@
     .btn-primary { background: #3a82c4; color: white; }
     .btn-secondary { background: #b3d4ec; color: #1a3a5c; }
     .btn-copy { background: #e8f4e8; color: #2a6a2a; font-size: 0.82rem; padding: 6px 14px; }
-    .btn-danger { background: #fce8e8; color: #c04040; font-size: 0.82rem; padding: 6px 14px; }
 
     #generate-btn { width: 100%; padding: 12px; font-size: 1rem; }
-
-    /* 上傳區 */
-    .upload-zone {
-      border: 2px dashed #b3d4ec;
-      border-radius: 10px;
-      padding: 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      background: #f5f9fd;
-      position: relative;
-    }
-
-    .upload-zone:hover, .upload-zone.drag-over {
-      border-color: #3a82c4;
-      background: #eaf3fb;
-    }
-
-    .upload-zone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
-    }
-
-    .upload-icon { font-size: 2rem; margin-bottom: 6px; }
-    .upload-text { font-size: 0.85rem; color: #5599cc; }
-
-    /* 照片預覽區 */
-    .photo-preview-wrap {
-      display: none;
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    .photo-preview-wrap.visible { display: flex; }
-
-    .photo-box {
-      flex: 1;
-      text-align: center;
-    }
-
-    .photo-box label {
-      font-size: 0.75rem;
-      color: #7a9abf;
-      margin-bottom: 6px;
-      text-align: center;
-    }
-
-    .photo-box img {
-      width: 100%;
-      max-height: 220px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1.5px solid #b3d4ec;
-    }
-
-    .photo-box .photo-loading {
-      width: 100%;
-      height: 180px;
-      background: #f0f7ff;
-      border-radius: 8px;
-      border: 1.5px solid #b3d4ec;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 8px;
-      color: #5599cc;
-      font-size: 0.85rem;
-    }
 
     .style-chips {
       display: flex;
@@ -212,13 +138,6 @@
       color: white;
     }
 
-    .convert-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    /* 貼文輸出 */
     .output-area { display: none; }
     .output-area.visible { display: block; }
 
@@ -229,37 +148,7 @@
       margin-bottom: 10px;
     }
 
-    .output-body {
-      display: flex;
-      gap: 14px;
-    }
-
-    .output-photo {
-      flex-shrink: 0;
-      width: 160px;
-      display: none;
-    }
-
-    .output-photo.visible { display: block; }
-
-    .output-photo img {
-      width: 100%;
-      border-radius: 8px;
-      border: 1.5px solid #b3d4ec;
-    }
-
-    .output-photo .dl-btn {
-      display: block;
-      text-align: center;
-      margin-top: 6px;
-      font-size: 0.78rem;
-      color: #3a82c4;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-
     .output-text {
-      flex: 1;
       background: #f5f9fd;
       border: 1.5px solid #b3d4ec;
       border-radius: 8px;
@@ -310,12 +199,6 @@
       font-size: 0.75rem;
       color: #7a9abf;
     }
-
-    @media (max-width: 500px) {
-      .output-body { flex-direction: column; }
-      .output-photo { width: 100%; }
-      .photo-preview-wrap { flex-direction: column; }
-    }
   </style>
 </head>
 <body>
@@ -365,45 +248,6 @@
     </div>
   </div>
 
-  <!-- 照片 -->
-  <div class="card">
-    <h2>🖼️ 活動照片（選填）</h2>
-
-    <div class="upload-zone" id="upload-zone">
-      <input type="file" id="photo-input" accept="image/*">
-      <div class="upload-icon">📷</div>
-      <div class="upload-text">點擊或拖曳上傳照片</div>
-    </div>
-
-    <div class="photo-preview-wrap" id="photo-preview-wrap">
-      <div class="photo-box">
-        <label>原始照片</label>
-        <img id="original-preview" src="" alt="原始照片">
-      </div>
-      <div class="photo-box" id="result-box" style="display:none">
-        <label id="result-label">轉換後</label>
-        <div id="result-preview-area"></div>
-      </div>
-    </div>
-
-    <div id="style-section" style="display:none; margin-top:14px;">
-      <label style="margin-bottom:8px;">照片風格</label>
-      <div class="style-chips">
-        <span class="chip active" data-style="original">📷 使用原照片</span>
-        <span class="chip" data-style="ghibli">🌿 吉卜力</span>
-        <span class="chip" data-style="anime">✨ 日系動漫</span>
-        <span class="chip" data-style="cute">🌸 可愛插畫</span>
-        <span class="chip" data-style="korean">🎨 韓系插畫</span>
-        <span class="chip" data-style="chibi">🐣 Q版卡通</span>
-      </div>
-      <div class="convert-row">
-        <button class="btn-primary" id="convert-btn" onclick="convertPhoto()" style="padding:8px 20px;font-size:0.88rem;">🎨 轉換照片</button>
-        <button class="btn-danger" onclick="clearPhoto()">✕ 移除照片</button>
-        <span id="convert-status" style="font-size:0.8rem;color:#7a9abf;"></span>
-      </div>
-    </div>
-  </div>
-
   <!-- 貼文風格 -->
   <div class="card">
     <h2>🎨 貼文風格</h2>
@@ -440,13 +284,7 @@
         <button class="btn-secondary" style="font-size:0.82rem;padding:6px 14px" onclick="generate()">🔄 重新生成</button>
       </div>
     </div>
-    <div class="output-body">
-      <div class="output-photo" id="output-photo">
-        <img id="output-img" src="" alt="活動照片">
-        <span class="dl-btn" onclick="downloadPhoto()">⬇ 下載照片</span>
-      </div>
-      <div class="output-text" id="output-text"></div>
-    </div>
+    <div class="output-text" id="output-text"></div>
   </div>
 
 </main>
@@ -468,12 +306,10 @@
     setTimeout(() => keyInput.style.borderColor = '', 1500);
   };
 
-  // 字數統計
   document.getElementById('activity-desc').addEventListener('input', e => {
     document.getElementById('desc-count').textContent = e.target.value.length + ' 字';
   });
 
-  // Chip 通用切換
   function setupChips(selector) {
     document.querySelectorAll(selector).forEach(chip => {
       chip.addEventListener('click', () => {
@@ -484,183 +320,7 @@
   }
   setupChips('[data-tone]');
   setupChips('[data-hash]');
-  setupChips('[data-style]');
 
-  // 照片處理
-  let originalFile = null;
-  let finalPhotoDataUrl = null;
-
-  const photoInput = document.getElementById('photo-input');
-  const uploadZone = document.getElementById('upload-zone');
-
-  photoInput.addEventListener('change', e => {
-    if (e.target.files[0]) loadPhoto(e.target.files[0]);
-  });
-
-  uploadZone.addEventListener('dragover', e => {
-    e.preventDefault();
-    uploadZone.classList.add('drag-over');
-  });
-  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-  uploadZone.addEventListener('drop', e => {
-    e.preventDefault();
-    uploadZone.classList.remove('drag-over');
-    if (e.dataTransfer.files[0]) loadPhoto(e.dataTransfer.files[0]);
-  });
-
-  function loadPhoto(file) {
-    originalFile = file;
-    finalPhotoDataUrl = null;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      document.getElementById('original-preview').src = ev.target.result;
-      document.getElementById('photo-preview-wrap').classList.add('visible');
-      document.getElementById('style-section').style.display = 'block';
-      document.getElementById('result-box').style.display = 'none';
-      document.getElementById('output-photo').classList.remove('visible');
-      finalPhotoDataUrl = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  window.clearPhoto = function() {
-    originalFile = null;
-    finalPhotoDataUrl = null;
-    photoInput.value = '';
-    document.getElementById('photo-preview-wrap').classList.remove('visible');
-    document.getElementById('style-section').style.display = 'none';
-    document.getElementById('output-photo').classList.remove('visible');
-  };
-
-  const STYLE_PROMPTS = {
-    ghibli: 'Transform this image into Studio Ghibli animation style. Soft watercolor textures, warm and natural colors, hand-drawn feel, lush backgrounds, gentle lighting.',
-    anime: 'Transform this image into Japanese anime illustration style. Clean lines, vibrant colors, expressive characters, anime aesthetic.',
-    cute: 'Transform this image into a cute kawaii illustration style. Soft pastel colors, round shapes, adorable expressions, friendly and sweet atmosphere.',
-    korean: 'Transform this image into Korean webtoon illustration style. Clean lines, soft colors, modern aesthetic, gentle shading.',
-    chibi: 'Transform this image into chibi Q-version cartoon style. Big heads, small bodies, super deformed cute characters, playful and fun.'
-  };
-
-  window.convertPhoto = async function() {
-    const style = document.querySelector('[data-style].active')?.dataset.style || 'original';
-    if (style === 'original') {
-      document.getElementById('convert-status').textContent = '已選擇使用原照片';
-      return;
-    }
-    if (!originalFile) return;
-
-    const apiKey = keyInput.value.trim();
-    if (!apiKey) { showError('請先輸入 OpenAI API Key'); return; }
-
-    const btn = document.getElementById('convert-btn');
-    const status = document.getElementById('convert-status');
-    btn.disabled = true;
-
-    const resultBox = document.getElementById('result-box');
-    const resultArea = document.getElementById('result-preview-area');
-    resultBox.style.display = 'block';
-
-    try {
-      const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-
-      // 步驟一：用 GPT-4o-mini 視覺分析照片場景
-      status.textContent = '步驟 1/2：分析照片場景…';
-      resultArea.innerHTML = '<div class="photo-loading"><span style="font-size:1.5rem">🔍</span><span>分析照片中…</span></div>';
-
-      const dataUrl = await fileToDataUrl(originalFile);
-      const base64 = dataUrl.split(',')[1];
-      const mimeType = originalFile.type || 'image/jpeg';
-
-      const visionResp = await client.chat.completions.create({
-        model: 'gpt-4o-mini',
-        max_tokens: 400,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'low' }
-            },
-            {
-              type: 'text',
-              text: 'Describe this photo scene in detail for image generation: setting, number of people, activities, clothing colors, background elements, lighting, mood. Be specific but concise (under 120 words). Do not mention names or faces.'
-            }
-          ]
-        }]
-      });
-
-      const sceneDesc = visionResp.choices[0].message.content;
-
-      // 步驟二：用 gpt-image-2 依場景描述 + 風格生成插畫
-      status.textContent = '步驟 2/2：生成插畫，約需 20 秒…';
-      resultArea.innerHTML = '<div class="photo-loading"><span style="font-size:1.5rem">🎨</span><span>生成插畫中…</span></div>';
-
-      const styleInstruction = STYLE_PROMPTS[style];
-      const finalPrompt = `${styleInstruction}\n\nScene to illustrate: ${sceneDesc}`;
-
-      const imgResp = await client.images.generate({
-        model: 'gpt-image-2',
-        prompt: finalPrompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'low'
-      });
-
-      finalPhotoDataUrl = imgResp.data[0].url;
-
-      const img = document.createElement('img');
-      img.src = finalPhotoDataUrl;
-      img.style.cssText = 'width:100%;border-radius:8px;border:1.5px solid #b3d4ec;';
-      resultArea.innerHTML = '';
-      resultArea.appendChild(img);
-
-      document.getElementById('result-label').textContent =
-        document.querySelector('[data-style].active')?.textContent || '轉換後';
-
-      status.textContent = '✅ 完成！';
-
-    } catch (e) {
-      resultArea.innerHTML = '';
-      resultBox.style.display = 'none';
-      finalPhotoDataUrl = document.getElementById('original-preview').src;
-      showError('照片轉換失敗：' + (e.message || String(e)));
-      status.textContent = '';
-    } finally {
-      btn.disabled = false;
-    }
-  };
-
-  function fileToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function toPngFile(file) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX = 1024;
-        let w = img.width, h = img.height;
-        if (w > MAX || h > MAX) {
-          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-          else { w = Math.round(w * MAX / h); h = MAX; }
-        }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        canvas.toBlob(blob => {
-          resolve(new File([blob], 'photo.png', { type: 'image/png' }));
-        }, 'image/png');
-      };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
-    });
-  }
-
-  // 錯誤訊息
   function showError(msg) {
     const el = document.getElementById('error-msg');
     el.textContent = msg;
@@ -671,7 +331,6 @@
     document.getElementById('error-msg').classList.remove('visible');
   }
 
-  // 生成貼文
   async function generate() {
     const apiKey = keyInput.value.trim();
     const name = document.getElementById('activity-name').value.trim();
@@ -719,13 +378,6 @@ ${extra ? `補充說明：${extra}` : ''}
         messages: [{ role: 'user', content: prompt }]
       });
       textEl.textContent = completion.choices?.[0]?.message?.content || '';
-
-      // 顯示照片
-      if (finalPhotoDataUrl) {
-        document.getElementById('output-img').src = finalPhotoDataUrl;
-        document.getElementById('output-photo').classList.add('visible');
-      }
-
     } catch (e) {
       out.classList.remove('visible');
       showError('生成失敗：' + (e.message || String(e)));
@@ -746,14 +398,6 @@ ${extra ? `補充說明：${extra}` : ''}
     } catch {
       alert('請手動複製：\n\n' + text);
     }
-  };
-
-  window.downloadPhoto = function() {
-    if (!finalPhotoDataUrl) return;
-    const a = document.createElement('a');
-    a.href = finalPhotoDataUrl;
-    a.download = '活動照片_' + Date.now() + '.png';
-    a.click();
   };
 </script>
 
