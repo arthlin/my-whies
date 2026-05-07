@@ -136,6 +136,14 @@
   <input id="title-input" type="text" placeholder="場次名稱（例：上午場）" maxlength="20">
   <button id="start-btn" onclick="startSession()">開新場次</button>
   <div id="start-error" style="color:#f87171;font-size:0.9rem;display:none;"></div>
+
+  <div style="margin-top:32px;border-top:1px solid #333;padding-top:24px;width:340px;text-align:center;">
+    <div style="font-size:0.9rem;color:#888;margin-bottom:12px;">或載入舊場次</div>
+    <input id="load-input" type="text" placeholder="輸入 6 碼場次 ID（例：PB8FKN）" maxlength="6"
+      style="text-transform:uppercase;letter-spacing:4px;font-size:1.1rem;">
+    <button id="load-btn" onclick="loadSession()" style="margin-top:10px;background:#2ecc71;">載入查看</button>
+    <div id="load-error" style="color:#f87171;font-size:0.9rem;display:none;margin-top:6px;"></div>
+  </div>
 </div>
 
 <div id="live">
@@ -186,6 +194,58 @@
     let id = '';
     for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
     return id;
+  }
+
+  async function loadSession() {
+    const id = document.getElementById('load-input').value.trim().toUpperCase();
+    const errDiv = document.getElementById('load-error');
+    if (id.length !== 6) {
+      errDiv.textContent = '請輸入完整的 6 碼 ID';
+      errDiv.style.display = 'block';
+      return;
+    }
+    errDiv.style.display = 'none';
+    const btn = document.getElementById('load-btn');
+    btn.disabled = true;
+    btn.textContent = '載入中…';
+
+    try {
+      const doc = await db.collection('sessions').doc(id).get();
+      if (!doc.exists) {
+        errDiv.textContent = '找不到此場次，請確認 ID 是否正確';
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '載入查看';
+        return;
+      }
+      const data = doc.data();
+      sessionId = id;
+      currentRound = data.currentRound || 1;
+
+      document.getElementById('setup').style.display = 'none';
+      const live = document.getElementById('live');
+      live.style.display = 'flex';
+      document.getElementById('session-title').textContent = `📂 ${data.title || id}`;
+
+      const base = window.location.href.replace(/display\.html.*$/, '');
+      const submitUrl = `${base}submit.html?s=${sessionId}`;
+      document.getElementById('submit-url').textContent = submitUrl;
+      document.getElementById('session-code').textContent = sessionId;
+
+      if (qrInstance) document.getElementById('qrcode').innerHTML = '';
+      qrInstance = new QRCode(document.getElementById('qrcode'), {
+        text: submitUrl, width: 160, height: 160,
+        colorDark: '#000000', colorLight: '#ffffff'
+      });
+
+      resizeCanvas();
+      listenWords();
+    } catch (e) {
+      errDiv.textContent = '載入失敗：' + e.message;
+      errDiv.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '載入查看';
+    }
   }
 
   async function startSession() {
