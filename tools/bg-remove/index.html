@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>圖片去背工具</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #181825;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #313244;
+      flex-shrink: 0;
+    }
+    h1 { font-size: 16px; font-weight: 700; color: #cba6f7; }
+    .subtitle { font-size: 11px; color: #6c7086; margin-top: 2px; }
+
+    #toolbar {
+      background: #181825;
+      border-bottom: 1px solid #313244;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    label { font-size: 12px; color: #a6adc8; }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 120px; height: 4px;
+      border-radius: 2px;
+      background: #45475a;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #cba6f7;
+      cursor: pointer;
+    }
+    #tolVal { font-size: 12px; color: #cba6f7; min-width: 28px; }
+
+    button {
+      padding: 6px 14px;
+      border: none; border-radius: 6px;
+      font-size: 13px; cursor: pointer;
+      transition: opacity .15s;
+    }
+    button:hover { opacity: .85; }
+    button:disabled { opacity: .4; cursor: default; }
+
+    #btnUpload   { background: #45475a; color: #cdd6f4; }
+    #btnRemove   { background: #cba6f7; color: #1e1e2e; font-weight: 700; }
+    #btnReset    { background: #f38ba8; color: #1e1e2e; }
+    #btnDownload { background: #a6e3a1; color: #1e1e2e; }
+
+    .sep { width: 1px; height: 26px; background: #313244; }
+
+    /* Canvas 區域 — 棋盤格當背景 */
+    #canvasWrap {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #888;
+      background-image:
+        linear-gradient(45deg, #555 25%, transparent 25%),
+        linear-gradient(-45deg, #555 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #555 75%),
+        linear-gradient(-45deg, transparent 75%, #555 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    }
+
+    /* 顯示用 canvas：只畫棋盤格 + 去背結果，不用於 pixel 讀寫 */
+    #displayCanvas {
+      cursor: default;
+      max-width: 100%;
+      max-height: 100%;
+      display: none;
+    }
+
+    #dropZone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    #dropZone .icon { font-size: 56px; opacity: .6; }
+    #dropZone .hint { font-size: 15px; color: #a6adc8; }
+    #dropZone .sub  { font-size: 12px; color: #6c7086; }
+    #dropZone.dragging { background: rgba(203,166,247,.08); outline: 2px dashed #cba6f7; }
+
+    #statusBar {
+      background: #181825;
+      border-top: 1px solid #313244;
+      padding: 5px 16px;
+      font-size: 11px;
+      color: #6c7086;
+      flex-shrink: 0;
+    }
+
+    #fileInput { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>圖片去背工具</h1>
+    <div class="subtitle">上傳圖片 → 調整容差 → 一鍵去背 → 下載 PNG</div>
+  </div>
+</header>
+
+<div id="toolbar">
+  <button id="btnUpload">📂 開啟圖片</button>
+  <div class="sep"></div>
+  <label>容差</label>
+  <input type="range" id="tolerance" min="0" max="150" value="40">
+  <span id="tolVal">40</span>
+  <div class="sep"></div>
+  <button id="btnRemove" disabled>🪄 一鍵去背</button>
+  <button id="btnReset"  disabled>↩ 還原</button>
+  <div class="sep"></div>
+  <button id="btnDownload" disabled>⬇ 下載 PNG</button>
+</div>
+
+<div id="canvasWrap">
+  <div id="dropZone">
+    <div class="icon">🖼️</div>
+    <div class="hint">拖曳圖片到此處，或點擊「開啟圖片」</div>
+    <div class="sub">支援 JPG・PNG・WebP・GIF</div>
+  </div>
+  <canvas id="displayCanvas"></canvas>
+</div>
+
+<div id="statusBar">尚未載入圖片</div>
+
+<input type="file" id="fileInput" accept="image/*">
+
+<script type="module">
+
+// ── 純 Canvas 去背（搬自 sticker-crop，已驗證可用）──
+function removeBgCanvas(src, tolerance) {
+  const oc = document.createElement('canvas');
+  oc.width = src.width; oc.height = src.height;
+  const octx = oc.getContext('2d');
+  octx.drawImage(src, 0, 0);
+  const img = octx.getImageData(0, 0, oc.width, oc.height);
+  const data = img.data;
+  const W = oc.width, H = oc.height;
+
+  // 從四個角取樣背景色（取平均）
+  function px(x, y) { const i=(y*W+x)*4; return [data[i],data[i+1],data[i+2]]; }
+  const corners = [[0,0],[W-1,0],[0,H-1],[W-1,H-1]].map(([x,y])=>px(x,y));
+  const bg = corners.reduce((a,c)=>[a[0]+c[0],a[1]+c[1],a[2]+c[2]], [0,0,0]).map(v=>v/4);
+
+  function diff(i) {
+    return Math.abs(data[i]-bg[0]) + Math.abs(data[i+1]-bg[1]) + Math.abs(data[i+2]-bg[2]);
+  }
+
+  // BFS flood fill 從四邊全部邊緣出發
+  const visited = new Uint8Array(W * H);
+  const queue = [];
+  for (let x=0; x<W; x++) { queue.push(x, 0); queue.push(x, H-1); }
+  for (let y=1; y<H-1; y++) { queue.push(0, y); queue.push(W-1, y); }
+
+  let qi = 0;
+  while (qi < queue.length) {
+    const x = queue[qi++], y = queue[qi++];
+    if (x<0||x>=W||y<0||y>=H) continue;
+    const idx = y*W+x;
+    if (visited[idx]) continue;
+    visited[idx] = 1;
+    const i = idx*4;
+    if (data[i+3] < 10 || diff(i) <= tolerance) {
+      data[i+3] = 0;
+      queue.push(x-1,y, x+1,y, x,y-1, x,y+1);
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  return oc;  // 回傳含透明背景的 canvas
+}
+
+// ── 在 displayCanvas 上畫棋盤格 + 疊圖（用 drawImage 做 alpha 合成）──
+function renderToDisplay(srcCanvas) {
+  const dc  = document.getElementById('displayCanvas');
+  const dctx = dc.getContext('2d');
+  dc.width  = srcCanvas.width;
+  dc.height = srcCanvas.height;
+
+  // 棋盤格
+  const S = 10;
+  for (let y=0; y<dc.height; y+=S) {
+    for (let x=0; x<dc.width; x+=S) {
+      dctx.fillStyle = ((Math.floor(x/S)+Math.floor(y/S))%2===0) ? '#aaaaaa' : '#ffffff';
+      dctx.fillRect(x, y, Math.min(S, dc.width-x), Math.min(S, dc.height-y));
+    }
+  }
+  // 疊上去背後的圖（alpha 合成）
+  dctx.drawImage(srcCanvas, 0, 0);
+}
+
+// ── State ──
+let originalImg  = null;  // HTMLImageElement
+let resultCanvas = null;  // 去背後的 canvas（用於下載）
+
+const dropZone   = document.getElementById('dropZone');
+const displayCanvas = document.getElementById('displayCanvas');
+const fileInput  = document.getElementById('fileInput');
+const tolSlider  = document.getElementById('tolerance');
+const tolVal     = document.getElementById('tolVal');
+const statusBar  = document.getElementById('statusBar');
+const btnUpload  = document.getElementById('btnUpload');
+const btnRemove  = document.getElementById('btnRemove');
+const btnReset   = document.getElementById('btnReset');
+const btnDownload= document.getElementById('btnDownload');
+const canvasWrap = document.getElementById('canvasWrap');
+
+tolSlider.addEventListener('input', () => { tolVal.textContent = tolSlider.value; });
+
+// ── Upload ──
+btnUpload.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadImage(e.target.files[0]);
+});
+
+// ── Drag & Drop ──
+canvasWrap.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragging');
+});
+canvasWrap.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+canvasWrap.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImage(file);
+});
+dropZone.addEventListener('click', () => fileInput.click());
+
+// ── Load ──
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      originalImg = img;
+      resultCanvas = null;
+
+      // 直接顯示原圖（畫到 displayCanvas）
+      const tmp = document.createElement('canvas');
+      tmp.width = img.naturalWidth; tmp.height = img.naturalHeight;
+      tmp.getContext('2d').drawImage(img, 0, 0);
+      renderToDisplay(tmp);
+
+      dropZone.style.display = 'none';
+      displayCanvas.style.display = 'block';
+      btnRemove.disabled   = false;
+      btnReset.disabled    = true;
+      btnDownload.disabled = true;
+      setStatus(`已載入：${file.name}　${img.naturalWidth} × ${img.naturalHeight} px　按「一鍵去背」開始處理`);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── 一鍵去背 ──
+btnRemove.addEventListener('click', () => {
+  if (!originalImg) return;
+  setStatus('去背處理中⋯');
+
+  // 用 setTimeout 讓 UI 先更新
+  setTimeout(() => {
+    try {
+      const tolerance = parseInt(tolSlider.value);
+
+      // 把原始圖片畫到暫時 canvas，傳入 removeBgCanvas
+      const tmp = document.createElement('canvas');
+      tmp.width = originalImg.naturalWidth; tmp.height = originalImg.naturalHeight;
+      tmp.getContext('2d').drawImage(originalImg, 0, 0);
+
+      resultCanvas = removeBgCanvas(tmp, tolerance);
+      renderToDisplay(resultCanvas);
+
+      btnReset.disabled    = false;
+      btnDownload.disabled = false;
+      setStatus(`去背完成！容差 ${tolerance}　若效果不佳，調整容差後再按一次「一鍵去背」`);
+    } catch (err) {
+      setStatus('❌ 去背失敗：' + err.message);
+    }
+  }, 50);
+});
+
+// ── 還原 ──
+btnReset.addEventListener('click', () => {
+  if (!originalImg) return;
+  resultCanvas = null;
+  const tmp = document.createElement('canvas');
+  tmp.width = originalImg.naturalWidth; tmp.height = originalImg.naturalHeight;
+  tmp.getContext('2d').drawImage(originalImg, 0, 0);
+  renderToDisplay(tmp);
+  btnReset.disabled    = true;
+  btnDownload.disabled = true;
+  setStatus('已還原為原始圖片');
+});
+
+// ── 下載（純透明 PNG，不含棋盤格）──
+btnDownload.addEventListener('click', () => {
+  if (!resultCanvas) return;
+  const link = document.createElement('a');
+  link.download = 'bg-removed.png';
+  link.href = resultCanvas.toDataURL('image/png');
+  link.click();
+  setStatus('已下載 PNG（含透明背景）');
+});
+
+function setStatus(msg) { statusBar.textContent = msg; }
+
+</script>
+</body>
+</html>

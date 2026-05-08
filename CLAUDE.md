@@ -17,6 +17,8 @@
 ## 工具清單
 （之後加新工具時會自動更新）
 - **wordcloud**（`tools/wordcloud/`）：即時文字雲活動工具。`display.html` 主持端（投影用），`submit.html` 學員掃碼填詞端。後端用 Firebase Firestore（teachstudy-b8b64），支援多場次隔離與清空。
+- **sticker-crop**（`tools/sticker-crop/`）：貼圖裁切去背工具。純前端，支援格子自動偵測、批次裁切、Canvas Flood Fill 去背、ZIP 下載。
+- **bg-remove**（`tools/bg-remove/`）：圖片去背工具。純前端，一鍵去背（邊緣 BFS Flood Fill），棋盤格預覽透明效果，下載透明 PNG。
 
 ## 工作注意事項
 - 學生資料一律去識別化（只用座號 + 班級代號）
