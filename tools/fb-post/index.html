@@ -219,6 +219,15 @@
       font-size: 0.82rem;
       font-family: monospace;
     }
+    .guide-warn {
+      background: #fff8e1;
+      border: 1.5px solid #f5c842;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 10px 0 8px;
+      color: #7a5500;
+      font-size: 0.85rem;
+    }
 
     .token-status {
       display: flex;
@@ -300,20 +309,22 @@
     <!-- 取得 Token 說明 -->
     <details class="token-guide" id="token-guide">
       <summary>📖 如何取得粉絲專頁存取權杖？（點此展開）</summary>
+      <div class="guide-warn">⚠️ 取得 Token 前，<strong>必須先勾選權限</strong>，否則發文時會出現 #200 權限錯誤！</div>
       <ol>
         <li>前往 <strong>Meta for Developers → Graph API Explorer</strong><br>
           <span class="hint">網址：developers.facebook.com/tools/explorer</span></li>
-        <li>右上角選擇你的 <strong>Meta App</strong></li>
-        <li>點「Add a Permission」，勾選以下三個權限：
+        <li>右上角「Meta App」選擇你的應用程式</li>
+        <li>⚠️ <strong>先點「Add a Permission」，依序勾選以下三個權限</strong>（缺一不可）：
           <ul>
-            <li><code>pages_show_list</code></li>
-            <li><code>pages_read_engagement</code></li>
-            <li><code>pages_manage_posts</code></li>
+            <li><code>pages_show_list</code> — 列出粉專</li>
+            <li><code>pages_read_engagement</code> — 讀取粉專資料（發文必要）</li>
+            <li><code>pages_manage_posts</code> — 發佈貼文（發文必要）</li>
           </ul>
+          <span class="hint">勾完後左側權限清單應出現這三項才正確</span>
         </li>
-        <li>點「Generate Access Token」，完成授權</li>
-        <li>上方選單從「User Token」切換為你的 <strong>粉絲專頁名稱</strong> → 複製下方 Token</li>
-        <li>將 Token 貼入下方欄位，點「✅ 驗證並載入」</li>
+        <li>確認權限勾選完畢後，點「<strong>Generate Access Token</strong>」，完成 Facebook 授權</li>
+        <li>Token 欄位上方的下拉選單，從「User Token」<strong>切換為你的粉絲專頁名稱</strong></li>
+        <li>複製下方產生的 Token，貼入下方欄位，點「✅ 驗證並載入」</li>
       </ol>
       <p class="hint" style="margin-top:8px">⏰ Page Access Token 有效期約 60 天，到期後重新執行上述步驟即可。</p>
     </details>
