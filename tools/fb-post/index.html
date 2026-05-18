@@ -323,21 +323,26 @@
           <span class="hint">勾完後左側權限清單應出現這三項才正確</span>
         </li>
         <li>確認權限勾選完畢後，點「<strong>Generate Access Token</strong>」，完成 Facebook 授權</li>
-        <li>Token 欄位上方的下拉選單，從「User Token」<strong>切換為你的粉絲專頁名稱</strong></li>
-        <li>複製下方產生的 Token，貼入下方欄位，點「✅ 驗證並載入」</li>
+        <li>保持選單在「<strong>User Token</strong>」狀態，直接複製下方的 Token（程式會自動取得正確的粉專 Token）</li>
+        <li>將 Token 貼入下方欄位，點「✅ 驗證並載入」</li>
       </ol>
       <p class="hint" style="margin-top:8px">⏰ Page Access Token 有效期約 60 天，到期後重新執行上述步驟即可。</p>
     </details>
 
     <div class="field" style="margin-top:12px">
-      <label>粉絲專頁存取權杖（Page Access Token）</label>
+      <label>User Access Token <span style="color:#7a9abf;font-weight:400">（從 Graph API Explorer 複製，保持 User Token 狀態）</span></label>
       <div class="api-row">
-        <input type="password" id="fb-page-token-input" placeholder="EAA...（從 Graph API Explorer 取得）">
+        <input type="password" id="fb-page-token-input" placeholder="EAA...">
         <button class="btn-primary" onclick="loadPageToken()">✅ 驗證並載入</button>
       </div>
-      <p class="hint">Token 只存在你的瀏覽器，不會上傳。有效期約 60 天，到期再重新取得。</p>
+      <p class="hint">Token 只存在你的瀏覽器，不會上傳。程式會自動從中取得粉專的 Page Access Token 再發文。</p>
     </div>
     <div class="token-status hidden" id="token-status"></div>
+    <div id="page-select-wrap" style="display:none;margin-top:10px">
+      <label>選擇要發文的粉專</label>
+      <select class="page-select" id="page-select"></select>
+      <button class="btn-secondary" style="margin-top:8px;font-size:0.82rem;padding:6px 14px" onclick="savePageSelection()">✅ 確認選擇</button>
+    </div>
   </div>
 
   <!-- 活動資訊 -->
@@ -548,29 +553,61 @@ ${extra ? `補充說明：${extra}` : ''}
 
     if (!token) {
       statusEl.className = 'token-status error';
-      statusEl.textContent = '請貼入 Page Access Token';
+      statusEl.textContent = '請貼入 User Access Token';
       return;
     }
 
     statusEl.className = 'token-status';
-    statusEl.textContent = '⏳ 驗證 Token 中…';
+    statusEl.textContent = '⏳ 取得粉專列表中…';
 
     try {
-      const res  = await fetch(`https://graph.facebook.com/me?fields=id,name&access_token=${encodeURIComponent(token)}`);
+      // 用 User Token 呼叫 /me/accounts，取得各粉專的 Page Access Token
+      const res  = await fetch(`https://graph.facebook.com/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
 
-      localStorage.setItem('fb_page_token', token);
-      localStorage.setItem('fb_page_id',    data.id);
-      localStorage.setItem('fb_page_name',  data.name);
+      const pages = data.data;
+      if (!pages || pages.length === 0) {
+        throw new Error('找不到你管理的粉專，請確認已勾選 pages_show_list 權限');
+      }
 
-      tokenInput.value = '';
-      document.getElementById('token-guide').removeAttribute('open');
-      refreshTokenStatus();
+      if (pages.length === 1) {
+        storePage(pages[0]);
+        tokenInput.value = '';
+        document.getElementById('token-guide').removeAttribute('open');
+        document.getElementById('page-select-wrap').style.display = 'none';
+        refreshTokenStatus();
+      } else {
+        window._fbPages = pages;
+        const sel = document.getElementById('page-select');
+        sel.innerHTML = pages.map(p =>
+          `<option value="${p.id}">${p.name}</option>`
+        ).join('');
+        document.getElementById('page-select-wrap').style.display = 'block';
+        statusEl.className = 'token-status';
+        statusEl.textContent = `找到 ${pages.length} 個粉專，請選擇要發文的粉專`;
+      }
     } catch (e) {
       statusEl.className = 'token-status error';
       statusEl.textContent = '❌ ' + (e.message || String(e));
     }
+  };
+
+  function storePage(page) {
+    localStorage.setItem('fb_page_token', page.access_token);
+    localStorage.setItem('fb_page_id',    page.id);
+    localStorage.setItem('fb_page_name',  page.name);
+  }
+
+  window.savePageSelection = function() {
+    const sel  = document.getElementById('page-select');
+    const page = window._fbPages?.[sel.selectedIndex];
+    if (!page) return;
+    storePage(page);
+    document.getElementById('page-select-wrap').style.display = 'none';
+    document.getElementById('fb-page-token-input').value = '';
+    document.getElementById('token-guide').removeAttribute('open');
+    refreshTokenStatus();
   };
 
   // ── 發佈到 Facebook ────────────────────────────────────────
