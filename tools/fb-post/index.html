@@ -196,6 +196,30 @@
     .btn-fb { background: #1877f2; color: white; }
     .btn-danger { background: #f5e0e0; color: #c04040; font-size: 0.82rem; padding: 6px 14px; }
 
+    .token-guide {
+      background: #f0f6ff;
+      border: 1.5px solid #b3d4ec;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      color: #1a3a5c;
+    }
+    .token-guide summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #3a6a9c;
+      user-select: none;
+    }
+    .token-guide ol { margin: 10px 0 0 18px; line-height: 2; }
+    .token-guide ul { margin: 2px 0 0 18px; line-height: 1.8; }
+    .token-guide code {
+      background: #ddeef8;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: monospace;
+    }
+
     .token-status {
       display: flex;
       align-items: center;
@@ -272,28 +296,37 @@
   <!-- FB 設定 -->
   <div class="card">
     <h2>📘 Facebook 粉專設定</h2>
-    <div class="field">
-      <label>App ID</label>
-      <input type="text" id="fb-app-id" placeholder="你的 Meta App ID">
-    </div>
-    <div class="field">
-      <label>App Secret</label>
-      <input type="password" id="fb-app-secret" placeholder="你的 Meta App Secret">
-      <p class="hint">只存在你的瀏覽器 localStorage，不會上傳。</p>
-    </div>
-    <div class="field">
-      <label>短期 User Token <span style="color:#7a9abf;font-weight:400">（從 Graph API Explorer 取得，每次換 Token 前貼入）</span></label>
+
+    <!-- 取得 Token 說明 -->
+    <details class="token-guide" id="token-guide">
+      <summary>📖 如何取得粉絲專頁存取權杖？（點此展開）</summary>
+      <ol>
+        <li>前往 <strong>Meta for Developers → Graph API Explorer</strong><br>
+          <span class="hint">網址：developers.facebook.com/tools/explorer</span></li>
+        <li>右上角選擇你的 <strong>Meta App</strong></li>
+        <li>點「Add a Permission」，勾選以下三個權限：
+          <ul>
+            <li><code>pages_show_list</code></li>
+            <li><code>pages_read_engagement</code></li>
+            <li><code>pages_manage_posts</code></li>
+          </ul>
+        </li>
+        <li>點「Generate Access Token」，完成授權</li>
+        <li>上方選單從「User Token」切換為你的 <strong>粉絲專頁名稱</strong> → 複製下方 Token</li>
+        <li>將 Token 貼入下方欄位，點「✅ 驗證並載入」</li>
+      </ol>
+      <p class="hint" style="margin-top:8px">⏰ Page Access Token 有效期約 60 天，到期後重新執行上述步驟即可。</p>
+    </details>
+
+    <div class="field" style="margin-top:12px">
+      <label>粉絲專頁存取權杖（Page Access Token）</label>
       <div class="api-row">
-        <input type="password" id="fb-short-token" placeholder="EAA...">
-        <button class="btn-primary" onclick="exchangeToken()">🔄 換取永久 Token</button>
+        <input type="password" id="fb-page-token-input" placeholder="EAA...（從 Graph API Explorer 取得）">
+        <button class="btn-primary" onclick="loadPageToken()">✅ 驗證並載入</button>
       </div>
+      <p class="hint">Token 只存在你的瀏覽器，不會上傳。有效期約 60 天，到期再重新取得。</p>
     </div>
     <div class="token-status hidden" id="token-status"></div>
-    <div id="page-select-wrap" style="display:none">
-      <label style="margin-top:8px">選擇要發文的粉專</label>
-      <select class="page-select" id="page-select"></select>
-      <button class="btn-secondary" style="margin-top:8px;font-size:0.82rem;padding:6px 14px" onclick="savePageSelection()">✅ 確認選擇</button>
-    </div>
   </div>
 
   <!-- 活動資訊 -->
@@ -477,22 +510,18 @@ ${extra ? `補充說明：${extra}` : ''}
 
   // ── FB 設定初始化 ──────────────────────────────────────────
   function loadFbSettings() {
-    const appId = localStorage.getItem('fb_app_id');
-    const appSecret = localStorage.getItem('fb_app_secret');
-    if (appId) document.getElementById('fb-app-id').value = appId;
-    if (appSecret) document.getElementById('fb-app-secret').value = appSecret;
     refreshTokenStatus();
   }
 
   function refreshTokenStatus() {
-    const pageToken = localStorage.getItem('fb_page_token');
-    const pageName  = localStorage.getItem('fb_page_name');
-    const statusEl  = document.getElementById('token-status');
+    const pageToken  = localStorage.getItem('fb_page_token');
+    const pageName   = localStorage.getItem('fb_page_name');
+    const statusEl   = document.getElementById('token-status');
     const publishRow = document.getElementById('publish-row');
 
     if (pageToken && pageName) {
       statusEl.className = 'token-status';
-      statusEl.innerHTML = `✅ 已綁定粉專：<strong>${pageName}</strong>（永不過期）`;
+      statusEl.innerHTML = `✅ 已綁定粉專：<strong>${pageName}</strong>（有效期約 60 天，到期請重新取得）`;
       publishRow.style.display = 'flex';
     } else {
       statusEl.className = 'token-status hidden';
@@ -500,85 +529,37 @@ ${extra ? `補充說明：${extra}` : ''}
     }
   }
 
-  // ── 換取永久 Token ─────────────────────────────────────────
-  window.exchangeToken = async function() {
-    const appId       = document.getElementById('fb-app-id').value.trim();
-    const appSecret   = document.getElementById('fb-app-secret').value.trim();
-    const shortToken  = document.getElementById('fb-short-token').value.trim();
-    const statusEl    = document.getElementById('token-status');
+  // ── 驗證並載入 Page Access Token ──────────────────────────
+  window.loadPageToken = async function() {
+    const tokenInput = document.getElementById('fb-page-token-input');
+    const token      = tokenInput.value.trim();
+    const statusEl   = document.getElementById('token-status');
 
-    if (!appId || !appSecret || !shortToken) {
+    if (!token) {
       statusEl.className = 'token-status error';
-      statusEl.textContent = '請填入 App ID、App Secret 和短期 Token';
+      statusEl.textContent = '請貼入 Page Access Token';
       return;
     }
 
-    localStorage.setItem('fb_app_id', appId);
-    localStorage.setItem('fb_app_secret', appSecret);
-
     statusEl.className = 'token-status';
-    statusEl.textContent = '⏳ 換取長效 Token 中…';
+    statusEl.textContent = '⏳ 驗證 Token 中…';
 
     try {
-      // Step 1: 短期 → 長效 User Token（60天）
-      const ltRes = await fetch(
-        `https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`
-      );
-      const ltData = await ltRes.json();
-      if (ltData.error) throw new Error(ltData.error.message);
-      const longToken = ltData.access_token;
+      const res  = await fetch(`https://graph.facebook.com/me?fields=id,name&access_token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
 
-      statusEl.textContent = '⏳ 取得粉專列表中…';
+      localStorage.setItem('fb_page_token', token);
+      localStorage.setItem('fb_page_id',    data.id);
+      localStorage.setItem('fb_page_name',  data.name);
 
-      // Step 2: 長效 User Token → 粉專列表（含永不過期的 Page Token）
-      const pageRes = await fetch(
-        `https://graph.facebook.com/me/accounts?access_token=${longToken}`
-      );
-      const pageData = await pageRes.json();
-      if (pageData.error) throw new Error(pageData.error.message);
-      const pages = pageData.data;
-
-      if (!pages || pages.length === 0) {
-        throw new Error('找不到你管理的粉專，請確認帳號有管理員權限');
-      }
-
-      if (pages.length === 1) {
-        // 只有一個粉專，直接儲存
-        localStorage.setItem('fb_page_token', pages[0].access_token);
-        localStorage.setItem('fb_page_id',    pages[0].id);
-        localStorage.setItem('fb_page_name',  pages[0].name);
-        document.getElementById('page-select-wrap').style.display = 'none';
-        refreshTokenStatus();
-        document.getElementById('fb-short-token').value = '';
-      } else {
-        // 多個粉專，讓使用者選
-        const sel = document.getElementById('page-select');
-        sel.innerHTML = pages.map(p =>
-          `<option value="${p.id}" data-token="${p.access_token}" data-name="${p.name}">${p.name}</option>`
-        ).join('');
-        // 暫存 pages 供選擇後使用
-        window._fbPages = pages;
-        document.getElementById('page-select-wrap').style.display = 'block';
-        statusEl.className = 'token-status';
-        statusEl.textContent = `找到 ${pages.length} 個粉專，請選擇要發文的粉專`;
-      }
+      tokenInput.value = '';
+      document.getElementById('token-guide').removeAttribute('open');
+      refreshTokenStatus();
     } catch (e) {
       statusEl.className = 'token-status error';
       statusEl.textContent = '❌ ' + (e.message || String(e));
     }
-  };
-
-  window.savePageSelection = function() {
-    const sel = document.getElementById('page-select');
-    const idx = sel.selectedIndex;
-    const page = window._fbPages?.[idx];
-    if (!page) return;
-    localStorage.setItem('fb_page_token', page.access_token);
-    localStorage.setItem('fb_page_id',    page.id);
-    localStorage.setItem('fb_page_name',  page.name);
-    document.getElementById('page-select-wrap').style.display = 'none';
-    document.getElementById('fb-short-token').value = '';
-    refreshTokenStatus();
   };
 
   // ── 發佈到 Facebook ────────────────────────────────────────
@@ -593,7 +574,7 @@ ${extra ? `補充說明：${extra}` : ''}
     errEl.classList.remove('visible');
 
     if (!pageToken || !pageId) {
-      errEl.textContent = '請先完成 FB 設定並換取 Token';
+      errEl.textContent = '請先貼入 Page Access Token 並完成驗證';
       errEl.classList.add('visible');
       return;
     }
