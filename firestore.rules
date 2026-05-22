@@ -4,14 +4,19 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       allow read: if true;
       allow create: if true;
-      allow update, delete: if false;
+      // clearWords() 只更新 currentRound
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentRound']);
+      // 管理員可刪除場次
+      allow delete: if request.auth != null && request.auth.token.email == 'arthlin@gmail.com';
 
       match /words/{wordId} {
         allow read: if true;
         allow create: if request.resource.data.keys().hasOnly(['word', 'round', 'ts'])
                       && request.resource.data.word is string
                       && request.resource.data.word.size() <= 20;
-        allow update, delete: if false;
+        allow update: if false;
+        // 管理員可刪除字詞
+        allow delete: if request.auth != null && request.auth.token.email == 'arthlin@gmail.com';
       }
     }
     match /{document=**} {
