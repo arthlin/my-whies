@@ -371,23 +371,30 @@ window.addSource = function() {
 };
 
 window.fetchNews = async function() {
+  const statusEl = document.getElementById('fetch-status');
+  const fetchBtn = document.getElementById('fetch-btn');
+
+  function setStatus(msg, color) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = color || '#7c6fb0';
+    statusEl.textContent = msg;
+  }
+
   const apiKey = keyInput.value.trim();
-  if (!apiKey) { showErr('請先輸入 OpenAI API Key'); return; }
+  if (!apiKey) { setStatus('❌ 請先輸入 OpenAI API Key', '#c04040'); return; }
 
   const urls = [...document.querySelectorAll('.src-url')]
     .map(i => i.value.trim()).filter(Boolean);
-  if (urls.length === 0) { showErr('請填入至少一個網站網址'); return; }
+  if (urls.length === 0) { setStatus('❌ 請填入至少一個網站網址', '#c04040'); return; }
 
-  const statusEl = document.getElementById('fetch-status');
-  const fetchBtn = document.getElementById('fetch-btn');
   fetchBtn.disabled = true;
-  statusEl.style.display = 'block';
+  setStatus('⏳ 準備抓取…');
 
   try {
     // 逐一抓取各網站
     const siteContents = [];
     for (let i = 0; i < urls.length; i++) {
-      statusEl.textContent = `⏳ 正在抓取第 ${i+1}/${urls.length} 個網站…`;
+      setStatus(`⏳ 正在抓取第 ${i+1}/${urls.length} 個網站…`);
       const jinaUrl = `https://r.jina.ai/${urls[i]}`;
       const res = await fetch(jinaUrl, { headers: { Accept: 'text/plain' } });
       if (!res.ok) throw new Error(`無法抓取 ${urls[i]}`);
@@ -395,7 +402,7 @@ window.fetchNews = async function() {
       siteContents.push({ url: urls[i], content: text.slice(0, 6000) });
     }
 
-    statusEl.textContent = '🤖 AI 正在篩選新聞…';
+    setStatus('🤖 AI 正在篩選新聞…');
 
     const audience = document.querySelector('[data-audience].active')?.dataset.audience || '教育工作者';
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
@@ -448,11 +455,9 @@ ${sitesText}` }]
       last.querySelector('.art-notes').value = a.notes || '';
     });
 
-    statusEl.textContent = `✅ 已抓取 ${articles.length} 則新聞，請確認後按「生成電子報」`;
-    statusEl.style.color = '#2a6a30';
+    setStatus(`✅ 已抓取 ${articles.length} 則新聞，請確認後按「生成電子報」`, '#2a6a30');
   } catch (err) {
-    statusEl.textContent = `❌ ${err.message}`;
-    statusEl.style.color = '#c04040';
+    setStatus(`❌ ${err.message}`, '#c04040');
   } finally {
     fetchBtn.disabled = false;
   }
