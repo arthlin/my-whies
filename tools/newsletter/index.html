@@ -393,16 +393,28 @@ window.fetchNews = async function() {
 
     for (let i = 0; i < rssUrls.length; i++) {
       setStatus(`⏳ 正在讀取第 ${i+1}/${rssUrls.length} 個 RSS 來源…`);
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrls[i])}&count=30`;
-      const res = await fetch(apiUrl);
-      if (!res.ok) throw new Error(`無法讀取 RSS：${rssUrls[i]}`);
-      const data = await res.json();
-      if (data.status !== 'ok') throw new Error(`RSS 解析失敗：${rssUrls[i]}`);
-
-      const thisWeek = (data.items || []).filter(item => {
-        const pub = new Date(item.pubDate).getTime();
-        return pub >= sevenDaysAgo;
+      const jinaUrl = `https://r.jina.ai/${rssUrls[i]}`;
+      const res = await fetch(jinaUrl, {
+        headers: { 'X-Return-Format': 'text', Accept: 'text/plain' }
       });
+      if (!res.ok) throw new Error(`無法讀取 RSS：${rssUrls[i]}`);
+      const xml = await res.text();
+
+      const doc = new DOMParser().parseFromString(xml, 'text/xml');
+      const items = [...doc.querySelectorAll('item')];
+      if (items.length === 0) throw new Error(`RSS 格式無法解析：${rssUrls[i]}`);
+
+      const thisWeek = items
+        .map(el => ({
+          title: el.querySelector('title')?.textContent || '',
+          link:  el.querySelector('link')?.textContent || '',
+          pubDate: el.querySelector('pubDate')?.textContent || '',
+          description: (el.querySelector('description')?.textContent || '').replace(/<[^>]+>/g, '').slice(0, 200),
+        }))
+        .filter(item => {
+          const pub = new Date(item.pubDate).getTime();
+          return !isNaN(pub) && pub >= sevenDaysAgo;
+        });
       weekItems.push(...thisWeek);
     }
 
