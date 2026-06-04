@@ -263,15 +263,15 @@
 
   <!-- 自動抓取新聞 -->
   <div class="card">
-    <div class="card-title">🌐 自動抓取新聞（選用）</div>
-    <p style="font-size:.82rem;color:#5a6a8a;margin-bottom:14px;">填入網站網址，AI 會自動抓取最新文章並篩選適合教育工作者的內容，填入下方文章列表。</p>
+    <div class="card-title">🌐 本週新聞自動抓取（選用）</div>
+    <p style="font-size:.82rem;color:#5a6a8a;margin-bottom:14px;">填入 RSS 訂閱網址，自動抓取近 7 天文章，AI 篩選適合教育工作者的內容填入下方列表。</p>
     <div id="source-list" style="display:flex;flex-direction:column;gap:8px;">
-      <div class="source-row"><input type="url" class="src-url" placeholder="https://technews.tw/" value="https://technews.tw/"></div>
-      <div class="source-row"><input type="url" class="src-url" placeholder="https://www.inside.com.tw/" value="https://www.inside.com.tw/"></div>
+      <div class="source-row"><input type="url" class="src-url" placeholder="RSS 網址" value="https://technews.tw/feed/"></div>
+      <div class="source-row"><input type="url" class="src-url" placeholder="RSS 網址" value="https://feeds.inside.com.tw/insidecomtw"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px;">
-      <button class="btn-secondary" onclick="addSource()" style="font-size:.82rem;padding:7px 14px;">＋ 新增網站</button>
-      <button class="btn-primary" id="fetch-btn" onclick="fetchNews()" style="font-size:.82rem;padding:7px 18px;">🔍 抓取新聞</button>
+      <button class="btn-secondary" onclick="addSource()" style="font-size:.82rem;padding:7px 14px;">＋ 新增來源</button>
+      <button class="btn-primary" id="fetch-btn" onclick="fetchNews()" style="font-size:.82rem;padding:7px 18px;">📡 抓取本週新聞</button>
     </div>
     <div id="fetch-status" style="margin-top:10px;font-size:.82rem;color:#7c6fb0;display:none;"></div>
   </div>
@@ -380,70 +380,80 @@ window.fetchNews = async function() {
   const apiKey = keyInput.value.trim();
   if (!apiKey) { setStatus('❌ 請先輸入 OpenAI API Key', '#c04040'); return; }
 
-  const urls = [...document.querySelectorAll('.src-url')]
+  const rssUrls = [...document.querySelectorAll('.src-url')]
     .map(i => i.value.trim()).filter(Boolean);
-  if (urls.length === 0) { setStatus('❌ 請填入至少一個網站網址', '#c04040'); return; }
+  if (rssUrls.length === 0) { setStatus('❌ 請填入至少一個 RSS 網址', '#c04040'); return; }
 
   fetchBtn.disabled = true;
   setStatus('⏳ 準備抓取…');
 
   try {
-    // 逐一抓取各網站
-    const siteContents = [];
-    for (let i = 0; i < urls.length; i++) {
-      setStatus(`⏳ 正在抓取第 ${i+1}/${urls.length} 個網站…`);
-      const jinaUrl = `https://r.jina.ai/${urls[i]}`;
-      const res = await fetch(jinaUrl, { headers: { Accept: 'text/plain' } });
-      if (!res.ok) throw new Error(`無法抓取 ${urls[i]}`);
-      const text = await res.text();
-      siteContents.push({ url: urls[i], content: text.slice(0, 6000) });
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const weekItems = [];
+
+    for (let i = 0; i < rssUrls.length; i++) {
+      setStatus(`⏳ 正在讀取第 ${i+1}/${rssUrls.length} 個 RSS 來源…`);
+      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrls[i])}&count=30`;
+      const res = await fetch(apiUrl);
+      if (!res.ok) throw new Error(`無法讀取 RSS：${rssUrls[i]}`);
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error(`RSS 解析失敗：${rssUrls[i]}`);
+
+      const thisWeek = (data.items || []).filter(item => {
+        const pub = new Date(item.pubDate).getTime();
+        return pub >= sevenDaysAgo;
+      });
+      weekItems.push(...thisWeek);
     }
 
-    setStatus('🤖 AI 正在篩選新聞…');
+    if (weekItems.length === 0) {
+      setStatus('⚠️ 近 7 天內沒有找到文章，請確認 RSS 網址是否正確', '#b07020');
+      return;
+    }
+
+    setStatus(`🤖 找到 ${weekItems.length} 篇本週文章，AI 正在篩選…`);
 
     const audience = document.querySelector('[data-audience].active')?.dataset.audience || '教育工作者';
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
-    const sitesText = siteContents.map((s, i) =>
-      `【來源${i+1}】${s.url}\n${s.content}`
-    ).join('\n\n---\n\n');
+    const articlesText = weekItems.map((item, i) =>
+      `[${i+1}] 標題：${item.title}\n日期：${item.pubDate}\n連結：${item.link}\n摘要：${(item.description || '').replace(/<[^>]+>/g, '').slice(0, 200)}`
+    ).join('\n\n');
 
-    const res = await client.chat.completions.create({
+    const aiRes = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 1500,
       messages: [{ role: 'user', content:
-        `以下是從多個科技新聞網站抓取的內容。請為「${audience}」篩選出最相關、最有價值的 3–5 則新聞。
+        `以下是本週（近7天）的科技新聞列表，請為「${audience}」篩選出最相關、最有價值的 3–5 則。
 
-優先選擇與以下主題相關的文章：AI 教育應用、教育科技、AI 工具、數位學習、學校資訊化、老師可用的科技工具。
+優先選擇：AI 教育應用、教育科技、AI 工具、數位學習、老師可用的科技工具、學校資訊化。
 避免選擇：財經股票、硬體規格、遊戲、娛樂、政治。
 
 請回傳純 JSON 陣列（不要加 markdown code block）：
 [
   {
     "title": "文章標題",
-    "url": "文章連結（若有）",
-    "notes": "100字以內的文章重點摘要"
+    "url": "文章連結",
+    "notes": "100字以內的文章重點摘要，說明對教育工作者的價值"
   }
 ]
 
-網站內容：
-${sitesText}` }]
+本週文章列表：
+${articlesText}` }]
     });
 
-    let articles;
+    let selected;
     try {
-      articles = JSON.parse(res.choices[0].message.content.trim());
+      selected = JSON.parse(aiRes.choices[0].message.content.trim());
     } catch {
       throw new Error('AI 回傳格式錯誤，請重試');
     }
 
-    // 清空現有文章列表
+    // 清空並填入文章列表
     const list = document.getElementById('article-list');
     list.innerHTML = '';
     artCount = 0;
-
-    // 填入抓取的文章
-    articles.forEach(a => {
+    selected.forEach(a => {
       addArticle();
       const cards = list.querySelectorAll('.article-card');
       const last = cards[cards.length - 1];
@@ -452,7 +462,7 @@ ${sitesText}` }]
       last.querySelector('.art-notes').value = a.notes || '';
     });
 
-    setStatus(`✅ 已抓取 ${articles.length} 則新聞，請確認後按「生成電子報」`, '#2a6a30');
+    setStatus(`✅ 已從本週 ${weekItems.length} 篇中挑出 ${selected.length} 則，請確認後按「生成電子報」`, '#2a6a30');
   } catch (err) {
     setStatus(`❌ ${err.message}`, '#c04040');
   } finally {
