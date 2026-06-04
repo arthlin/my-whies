@@ -390,8 +390,8 @@ window.fetchNews = async function() {
   try {
 
     const siteContents = [];
-    for (let i = 0; i < rssUrls.length; i++) {
-      setStatus(`⏳ 正在抓取第 ${i+1}/${rssUrls.length} 個網站…`);
+    for (let i = 0; i < urls.length; i++) {
+      setStatus(`⏳ 正在抓取第 ${i+1}/${urls.length} 個網站…`);
       const jinaUrl = `https://r.jina.ai/${urls[i]}`;
       const res = await fetch(jinaUrl, { headers: { Accept: 'text/plain' } });
       if (!res.ok) throw new Error(`無法抓取網站：${urls[i]}`);
