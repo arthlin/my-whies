@@ -347,9 +347,6 @@ const today = new Date();
 document.getElementById('nl-date').value =
   `${today.getFullYear()} 年 ${today.getMonth()+1} 月`;
 
-// 初始3篇文章
-addArticle(); addArticle(); addArticle();
-
 // ── API Key ────────────────────────────────────────────────
 window.saveApiKey = function() {
   const val = keyInput.value.trim();
@@ -775,6 +772,9 @@ window.openInNewTab = function() {
   win.document.write(generatedHtml);
   win.document.close();
 };
+
+// ── 初始化（所有函式定義完後才呼叫）──────────────────────────
+addArticle(); addArticle(); addArticle();
 
 </script>
 </body>
