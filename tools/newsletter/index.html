@@ -185,6 +185,12 @@
     .api-row { display: flex; gap: 8px; align-items: flex-end; }
     .api-row input { flex: 1; }
 
+    /* source rows */
+    .source-row { display: flex; gap: 6px; align-items: center; }
+    .source-row input { flex: 1; }
+    .source-row .remove-src { background:none;border:none;color:#c0a0a0;font-size:1rem;cursor:pointer;padding:4px 6px;border-radius:4px; }
+    .source-row .remove-src:hover { color:#c04040;background:#fef0f0; }
+
     /* style chips */
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip {
@@ -253,6 +259,21 @@
       <label>開場語（選填，不填由 AI 生成）</label>
       <textarea id="nl-intro" rows="2" placeholder="例：本期整理了 5 則 AI 教育相關新聞，希望幫助教育工作者掌握趨勢…"></textarea>
     </div>
+  </div>
+
+  <!-- 自動抓取新聞 -->
+  <div class="card">
+    <div class="card-title">🌐 自動抓取新聞（選用）</div>
+    <p style="font-size:.82rem;color:#5a6a8a;margin-bottom:14px;">填入網站網址，AI 會自動抓取最新文章並篩選適合教育工作者的內容，填入下方文章列表。</p>
+    <div id="source-list" style="display:flex;flex-direction:column;gap:8px;">
+      <div class="source-row"><input type="url" class="src-url" placeholder="https://technews.tw/" value="https://technews.tw/"></div>
+      <div class="source-row"><input type="url" class="src-url" placeholder="https://www.inside.com.tw/" value="https://www.inside.com.tw/"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn-secondary" onclick="addSource()" style="font-size:.82rem;padding:7px 14px;">＋ 新增網站</button>
+      <button class="btn-primary" id="fetch-btn" onclick="fetchNews()" style="font-size:.82rem;padding:7px 18px;">🔍 抓取新聞</button>
+    </div>
+    <div id="fetch-status" style="margin-top:10px;font-size:.82rem;color:#7c6fb0;display:none;"></div>
   </div>
 
   <!-- 文章列表 -->
@@ -336,6 +357,105 @@ window.saveApiKey = function() {
   localStorage.setItem('openai_api_key', val);
   keyInput.style.borderColor = '#5cb85c';
   setTimeout(() => keyInput.style.borderColor = '', 1500);
+};
+
+// ── 新聞來源抓取 ───────────────────────────────────────────
+window.addSource = function() {
+  const list = document.getElementById('source-list');
+  if (list.children.length >= 5) { alert('最多 5 個來源'); return; }
+  const row = document.createElement('div');
+  row.className = 'source-row';
+  row.innerHTML = `<input type="url" class="src-url" placeholder="https://...">
+    <button class="remove-src" onclick="this.closest('.source-row').remove()" title="移除">✕</button>`;
+  list.appendChild(row);
+};
+
+window.fetchNews = async function() {
+  const apiKey = keyInput.value.trim();
+  if (!apiKey) { showErr('請先輸入 OpenAI API Key'); return; }
+
+  const urls = [...document.querySelectorAll('.src-url')]
+    .map(i => i.value.trim()).filter(Boolean);
+  if (urls.length === 0) { showErr('請填入至少一個網站網址'); return; }
+
+  const statusEl = document.getElementById('fetch-status');
+  const fetchBtn = document.getElementById('fetch-btn');
+  fetchBtn.disabled = true;
+  statusEl.style.display = 'block';
+
+  try {
+    // 逐一抓取各網站
+    const siteContents = [];
+    for (let i = 0; i < urls.length; i++) {
+      statusEl.textContent = `⏳ 正在抓取第 ${i+1}/${urls.length} 個網站…`;
+      const jinaUrl = `https://r.jina.ai/${urls[i]}`;
+      const res = await fetch(jinaUrl, { headers: { Accept: 'text/plain' } });
+      if (!res.ok) throw new Error(`無法抓取 ${urls[i]}`);
+      const text = await res.text();
+      siteContents.push({ url: urls[i], content: text.slice(0, 6000) });
+    }
+
+    statusEl.textContent = '🤖 AI 正在篩選新聞…';
+
+    const audience = document.querySelector('[data-audience].active')?.dataset.audience || '教育工作者';
+    const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+
+    const sitesText = siteContents.map((s, i) =>
+      `【來源${i+1}】${s.url}\n${s.content}`
+    ).join('\n\n---\n\n');
+
+    const res = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content:
+        `以下是從多個科技新聞網站抓取的內容。請為「${audience}」篩選出最相關、最有價值的 3–5 則新聞。
+
+優先選擇與以下主題相關的文章：AI 教育應用、教育科技、AI 工具、數位學習、學校資訊化、老師可用的科技工具。
+避免選擇：財經股票、硬體規格、遊戲、娛樂、政治。
+
+請回傳純 JSON 陣列（不要加 markdown code block）：
+[
+  {
+    "title": "文章標題",
+    "url": "文章連結（若有）",
+    "notes": "100字以內的文章重點摘要"
+  }
+]
+
+網站內容：
+${sitesText}` }]
+    });
+
+    let articles;
+    try {
+      articles = JSON.parse(res.choices[0].message.content.trim());
+    } catch {
+      throw new Error('AI 回傳格式錯誤，請重試');
+    }
+
+    // 清空現有文章列表
+    const list = document.getElementById('article-list');
+    list.innerHTML = '';
+    artCount = 0;
+
+    // 填入抓取的文章
+    articles.forEach(a => {
+      addArticle();
+      const cards = list.querySelectorAll('.article-card');
+      const last = cards[cards.length - 1];
+      last.querySelector('.art-title').value = a.title || '';
+      last.querySelector('.art-url').value = a.url || '';
+      last.querySelector('.art-notes').value = a.notes || '';
+    });
+
+    statusEl.textContent = `✅ 已抓取 ${articles.length} 則新聞，請確認後按「生成電子報」`;
+    statusEl.style.color = '#2a6a30';
+  } catch (err) {
+    statusEl.textContent = `❌ ${err.message}`;
+    statusEl.style.color = '#c04040';
+  } finally {
+    fetchBtn.disabled = false;
+  }
 };
 
 // ── 文章卡片 ───────────────────────────────────────────────
