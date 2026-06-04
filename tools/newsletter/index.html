@@ -393,14 +393,13 @@ window.fetchNews = async function() {
 
     for (let i = 0; i < rssUrls.length; i++) {
       setStatus(`⏳ 正在讀取第 ${i+1}/${rssUrls.length} 個 RSS 來源…`);
-      const jinaUrl = `https://r.jina.ai/${rssUrls[i]}`;
-      const res = await fetch(jinaUrl, {
-        headers: { 'X-Return-Format': 'text', Accept: 'text/plain' }
-      });
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrls[i])}`;
+      const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error(`無法讀取 RSS：${rssUrls[i]}`);
-      const xml = await res.text();
+      const data = await res.json();
+      if (!data.contents) throw new Error(`RSS 內容為空：${rssUrls[i]}`);
 
-      const doc = new DOMParser().parseFromString(xml, 'text/xml');
+      const doc = new DOMParser().parseFromString(data.contents, 'text/xml');
       const items = [...doc.querySelectorAll('item')];
       if (items.length === 0) throw new Error(`RSS 格式無法解析：${rssUrls[i]}`);
 
