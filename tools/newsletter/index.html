@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 週報生成器</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f8;
+      color: #1a2a3a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1e1e2e 0%, #2a2a40 100%);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 2px solid #cba6f7;
+    }
+    header .icon { font-size: 1.6rem; }
+    header h1 { font-size: 1.1rem; font-weight: 700; color: #cba6f7; }
+    header p { font-size: 0.78rem; color: #a6adc8; margin-top: 2px; }
+
+    main {
+      flex: 1;
+      padding: 20px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #7c6fb0;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #2a3a5a;
+    }
+    .hint { font-size: 0.72rem; color: #8a9abf; margin-top: 3px; }
+
+    input[type="text"], input[type="password"], input[type="url"], textarea, select {
+      width: 100%;
+      border: 1.5px solid #d0dbe8;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.88rem;
+      font-family: inherit;
+      color: #1a2a3a;
+      background: #f8fafd;
+      outline: none;
+      transition: border-color .2s;
+    }
+    input:focus, textarea:focus { border-color: #9a7fd8; background: white; }
+    textarea { resize: vertical; line-height: 1.6; }
+
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media(max-width:600px){ .row2 { grid-template-columns: 1fr; } }
+
+    /* article cards */
+    .article-list { display: flex; flex-direction: column; gap: 14px; }
+
+    .article-card {
+      border: 1.5px solid #e0e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: #fafbfd;
+      position: relative;
+    }
+    .article-card .art-num {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #9a7fd8;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 10px;
+    }
+    .article-card .remove-btn {
+      position: absolute;
+      top: 10px; right: 12px;
+      background: none;
+      border: none;
+      color: #c0a0a0;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .article-card .remove-btn:hover { color: #c04040; background: #fef0f0; }
+
+    #add-article-btn {
+      border: 1.5px dashed #c0b0e0;
+      background: none;
+      color: #9a7fd8;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      width: 100%;
+      transition: all .15s;
+    }
+    #add-article-btn:hover { background: #f5f0ff; border-color: #9a7fd8; }
+
+    button {
+      border: none; border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 0.88rem; font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      font-family: inherit;
+    }
+    button:hover { opacity: .88; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+    .btn-primary { background: #7c6fb0; color: white; }
+    .btn-secondary { background: #e8e4f4; color: #5a4a8a; }
+    .btn-green { background: #d4f0d8; color: #2a6a30; }
+    .btn-download { background: #1e1e2e; color: #cba6f7; font-size: 0.82rem; padding: 7px 16px; }
+
+    #generate-btn { width: 100%; padding: 13px; font-size: 1rem; }
+
+    .error-msg {
+      background: #fef0f0; border: 1.5px solid #f5c0c0;
+      border-radius: 8px; padding: 10px 14px;
+      color: #c04040; font-size: 0.85rem; display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    .loading { text-align:center; padding:28px; color:#9a7fd8; font-size:.9rem; }
+    .loading-dot { display:inline-block; animation:blink 1.2s infinite; }
+    .loading-dot:nth-child(2){ animation-delay:.2s; }
+    .loading-dot:nth-child(3){ animation-delay:.4s; }
+    @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+    /* preview area */
+    #preview-area { display: none; }
+    #preview-area.visible { display: block; }
+
+    .preview-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+    }
+    .preview-header-btns { display: flex; gap: 8px; }
+
+    #preview-frame {
+      width: 100%; border: 1.5px solid #d0dbe8;
+      border-radius: 10px; background: white;
+      overflow: hidden;
+    }
+
+    /* API key row */
+    .api-row { display: flex; gap: 8px; align-items: flex-end; }
+    .api-row input { flex: 1; }
+
+    /* style chips */
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 5px 12px; border-radius: 20px;
+      border: 1.5px solid #d0dbe8; background: #f8fafd;
+      font-size: 0.8rem; cursor: pointer; color: #4a5a7a;
+      transition: all .15s;
+    }
+    .chip.active { background: #7c6fb0; border-color: #7c6fb0; color: white; }
+
+    footer {
+      text-align: center; padding: 14px;
+      font-size: 0.72rem; color: #9aabba;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="icon">📰</span>
+  <div>
+    <h1>AI 週報生成器</h1>
+    <p>輸入文章資訊，自動生成一期精美電子報 HTML</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- API 金鑰 -->
+  <div class="card">
+    <div class="card-title">⚙️ 設定</div>
+    <div class="field">
+      <label>OpenAI API Key</label>
+      <div class="api-row">
+        <input type="password" id="api-key" placeholder="sk-..." autocomplete="off">
+        <button class="btn-secondary" onclick="saveApiKey()">儲存</button>
+      </div>
+      <p class="hint">金鑰只存在瀏覽器，不會上傳。已有其他工具設定的金鑰會自動帶入。</p>
+    </div>
+  </div>
+
+  <!-- 週報基本資訊 -->
+  <div class="card">
+    <div class="card-title">📋 週報基本資訊</div>
+    <div class="row2">
+      <div class="field">
+        <label>電子報標題</label>
+        <input type="text" id="nl-title" placeholder="例：教育 AI 週報" value="教育 AI 週報">
+      </div>
+      <div class="field">
+        <label>副標題（選填）</label>
+        <input type="text" id="nl-subtitle" placeholder="例：給教育工作者的 AI 精選">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>期數</label>
+        <input type="text" id="nl-edition" placeholder="例：第 1 期 / Vol.01" value="第 1 期">
+      </div>
+      <div class="field">
+        <label>日期</label>
+        <input type="text" id="nl-date" placeholder="例：2026 年 6 月">
+      </div>
+    </div>
+    <div class="field">
+      <label>開場語（選填，不填由 AI 生成）</label>
+      <textarea id="nl-intro" rows="2" placeholder="例：本期整理了 5 則 AI 教育相關新聞，希望幫助教育工作者掌握趨勢…"></textarea>
+    </div>
+  </div>
+
+  <!-- 文章列表 -->
+  <div class="card">
+    <div class="card-title">📌 文章列表（3–5 篇）</div>
+    <div class="article-list" id="article-list"></div>
+    <button id="add-article-btn" onclick="addArticle()" style="margin-top:12px">＋ 新增一篇文章</button>
+  </div>
+
+  <!-- 風格設定 -->
+  <div class="card">
+    <div class="card-title">🎨 風格設定</div>
+    <div class="field">
+      <label>讀者對象</label>
+      <div class="chips">
+        <span class="chip active" data-audience="教育工作者（教師、行政）">教育工作者</span>
+        <span class="chip" data-audience="學校行政主管">學校主管</span>
+        <span class="chip" data-audience="對 AI 感興趣的一般民眾">一般民眾</span>
+        <span class="chip" data-audience="家長">家長</span>
+      </div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>摘要風格</label>
+      <div class="chips">
+        <span class="chip active" data-style="簡潔清晰，條理分明">簡潔清晰</span>
+        <span class="chip" data-style="深入分析，帶有觀點">深入分析</span>
+        <span class="chip" data-style="輕鬆易懂，口語化">輕鬆易懂</span>
+      </div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>色系主題</label>
+      <div class="chips">
+        <span class="chip active" data-theme="dark" onclick="selectTheme(this,'dark')">深色（黑紫）</span>
+        <span class="chip" data-theme="light" onclick="selectTheme(this,'light')">淺色（白藍）</span>
+        <span class="chip" data-theme="warm" onclick="selectTheme(this,'warm')">暖色（米黃）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 生成按鈕 -->
+  <button class="btn-primary" id="generate-btn" onclick="generate()">✨ 生成電子報</button>
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- 預覽 -->
+  <div class="card" id="preview-area">
+    <div class="preview-header">
+      <div class="card-title" style="margin-bottom:0">👀 預覽</div>
+      <div class="preview-header-btns">
+        <button class="btn-download" onclick="downloadHtml()">⬇️ 下載 HTML</button>
+        <button class="btn-secondary" style="font-size:.82rem;padding:7px 14px" onclick="copyHtml()">📋 複製 HTML</button>
+        <button class="btn-secondary" style="font-size:.82rem;padding:7px 14px" onclick="openInNewTab()">↗️ 另開預覽</button>
+      </div>
+    </div>
+    <iframe id="preview-frame" style="height:600px;border:none;" sandbox="allow-same-origin"></iframe>
+  </div>
+
+</main>
+
+<footer>Arthur 的工具箱 · my-whies</footer>
+
+<script type="module">
+import OpenAI from 'https://esm.sh/openai';
+
+// ── 初始化 ──────────────────────────────────────────────────
+const keyInput = document.getElementById('api-key');
+const saved = localStorage.getItem('openai_api_key');
+if (saved) keyInput.value = saved;
+
+// 預設今天日期
+const today = new Date();
+document.getElementById('nl-date').value =
+  `${today.getFullYear()} 年 ${today.getMonth()+1} 月`;
+
+// 初始3篇文章
+addArticle(); addArticle(); addArticle();
+
+// ── API Key ────────────────────────────────────────────────
+window.saveApiKey = function() {
+  const val = keyInput.value.trim();
+  if (!val) return;
+  localStorage.setItem('openai_api_key', val);
+  keyInput.style.borderColor = '#5cb85c';
+  setTimeout(() => keyInput.style.borderColor = '', 1500);
+};
+
+// ── 文章卡片 ───────────────────────────────────────────────
+let artCount = 0;
+window.addArticle = function() {
+  const list = document.getElementById('article-list');
+  if (list.children.length >= 5) {
+    alert('最多 5 篇文章');
+    return;
+  }
+  artCount++;
+  const id = artCount;
+  const card = document.createElement('div');
+  card.className = 'article-card';
+  card.dataset.id = id;
+  card.innerHTML = `
+    <div class="art-num">文章 ${list.children.length + 1}</div>
+    <button class="remove-btn" onclick="removeArticle(this)" title="移除">✕</button>
+    <div class="field">
+      <label>文章標題 <span style="color:#c04040">*</span></label>
+      <input type="text" class="art-title" placeholder="例：AI 已能批改作文？教育部最新指引出爐">
+    </div>
+    <div class="field">
+      <label>原文連結</label>
+      <input type="url" class="art-url" placeholder="https://...">
+    </div>
+    <div class="field">
+      <label>文章重點 / 你想說的話 <span style="color:#c04040">*</span></label>
+      <textarea class="art-notes" rows="3" placeholder="貼上文章重點、你的摘要，或直接貼原文一段。AI 會幫你整理成電子報格式。"></textarea>
+    </div>
+  `;
+  list.appendChild(card);
+  refreshArtNums();
+};
+
+window.removeArticle = function(btn) {
+  const list = document.getElementById('article-list');
+  if (list.children.length <= 1) { alert('至少保留 1 篇'); return; }
+  btn.closest('.article-card').remove();
+  refreshArtNums();
+};
+
+function refreshArtNums() {
+  document.querySelectorAll('.article-card').forEach((c, i) => {
+    c.querySelector('.art-num').textContent = `文章 ${i+1}`;
+  });
+}
+
+// ── 風格 chips ─────────────────────────────────────────────
+['[data-audience]','[data-style]'].forEach(sel => {
+  document.querySelectorAll(sel).forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll(sel).forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+});
+
+let currentTheme = 'dark';
+window.selectTheme = function(el, theme) {
+  document.querySelectorAll('[data-theme]').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentTheme = theme;
+};
+
+// ── 生成 ───────────────────────────────────────────────────
+let generatedHtml = '';
+
+window.generate = async function() {
+  const apiKey = keyInput.value.trim();
+  const nlTitle = document.getElementById('nl-title').value.trim();
+  const nlSubtitle = document.getElementById('nl-subtitle').value.trim();
+  const nlEdition = document.getElementById('nl-edition').value.trim();
+  const nlDate = document.getElementById('nl-date').value.trim();
+  const nlIntro = document.getElementById('nl-intro').value.trim();
+
+  const audience = document.querySelector('[data-audience].active')?.dataset.audience || '教育工作者';
+  const style = document.querySelector('[data-style].active')?.dataset.style || '簡潔清晰，條理分明';
+
+  const articles = [];
+  let valid = true;
+  document.querySelectorAll('.article-card').forEach(card => {
+    const title = card.querySelector('.art-title').value.trim();
+    const url   = card.querySelector('.art-url').value.trim();
+    const notes = card.querySelector('.art-notes').value.trim();
+    if (!title || !notes) { valid = false; return; }
+    articles.push({ title, url, notes });
+  });
+
+  const errEl = document.getElementById('error-msg');
+  if (!apiKey) { showErr('請先輸入 OpenAI API Key'); return; }
+  if (!nlTitle) { showErr('請輸入電子報標題'); return; }
+  if (articles.length === 0 || !valid) { showErr('請確認每篇文章都有填寫標題與重點'); return; }
+
+  errEl.classList.remove('visible');
+  document.getElementById('generate-btn').disabled = true;
+
+  const preview = document.getElementById('preview-area');
+  const frame = document.getElementById('preview-frame');
+  preview.classList.add('visible');
+  frame.srcdoc = '<div style="text-align:center;padding:60px;font-family:sans-serif;color:#9a7fd8">生成中<span style="animation:blink 1s infinite">…</span></div>';
+
+  // 建構 prompt
+  const articlesText = articles.map((a, i) =>
+    `文章${i+1}：
+標題：${a.title}
+連結：${a.url || '無'}
+原始資料：${a.notes}`
+  ).join('\n\n');
+
+  const prompt = `你是一位台灣教育科技領域的電子報編輯，請根據以下資料生成一期電子報的 JSON 內容。
+
+目標讀者：${audience}
+摘要風格：${style}
+電子報標題：${nlTitle}${nlSubtitle ? `\n副標題：${nlSubtitle}` : ''}
+期數：${nlEdition}
+日期：${nlDate}
+${nlIntro ? `開場語（直接使用此內容）：${nlIntro}` : ''}
+
+文章資料：
+${articlesText}
+
+請回傳純 JSON，格式如下（不要加 markdown code block）：
+{
+  "intro": "開場語（2-3句，若有指定開場語則原樣使用）",
+  "articles": [
+    {
+      "title": "文章標題（可微調讓標題更吸引人）",
+      "url": "原始連結",
+      "summary": "摘要（80-120字，${style}風格，針對${audience}）",
+      "insight": "編者觀點（40-60字，提供一個思考角度或行動建議）"
+    }
+  ],
+  "trend": "趨勢觀察（100-150字，整合本期文章的共同主題，提出一個宏觀觀點）",
+  "reflection": "本期反思問題（1個問題，引導讀者思考在自身工作中的應用）"
+}`;
+
+  try {
+    const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+    const res = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    let raw = res.choices?.[0]?.message?.content || '';
+    // 清除可能的 markdown code block
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/,'').trim();
+    const data = JSON.parse(raw);
+    data.title = nlTitle;
+    data.subtitle = nlSubtitle;
+    data.edition = nlEdition;
+    data.date = nlDate;
+    // 回填 url（API 可能遺漏）
+    data.articles.forEach((a, i) => {
+      if (!a.url && articles[i]?.url) a.url = articles[i].url;
+    });
+
+    generatedHtml = buildHtml(data, currentTheme);
+    frame.srcdoc = generatedHtml;
+    preview.classList.add('visible');
+    frame.style.height = '700px';
+
+  } catch(e) {
+    showErr('生成失敗：' + (e.message || String(e)));
+    preview.classList.remove('visible');
+  } finally {
+    document.getElementById('generate-btn').disabled = false;
+  }
+};
+
+// ── 建構 HTML ──────────────────────────────────────────────
+function buildHtml(d, theme) {
+  const themes = {
+    dark: {
+      bg: '#0f0f1a', cardBg: '#1e1e2e', border: '#313244',
+      header: 'linear-gradient(135deg,#1e1e2e,#181825)',
+      accent: '#cba6f7', title: '#cba6f7', body: '#cdd6f4',
+      muted: '#6c7086', tagBg: '#313244', tagColor: '#a6adc8',
+      artNumColor: '#89b4fa', insightBg: '#181825', insightBorder: '#313244',
+      trendBg: '#181825', reflBg: '#181825',
+      linkColor: '#cba6f7', footerColor: '#45475a',
+    },
+    light: {
+      bg: '#f0f6fc', cardBg: '#ffffff', border: '#d0dde8',
+      header: 'linear-gradient(135deg,#ddeeff,#c8dff2)',
+      accent: '#3a82c4', title: '#1a3a6c', body: '#1a2a4a',
+      muted: '#7a8aaa', tagBg: '#e0ecf8', tagColor: '#3a5a8c',
+      artNumColor: '#3a82c4', insightBg: '#f0f8ff', insightBorder: '#b3d4ec',
+      trendBg: '#f0f8ff', reflBg: '#f0f8ff',
+      linkColor: '#3a82c4', footerColor: '#9aabba',
+    },
+    warm: {
+      bg: '#fdf8f0', cardBg: '#ffffff', border: '#e8dfc8',
+      header: 'linear-gradient(135deg,#f5ede0,#ecdcc8)',
+      accent: '#c47a3a', title: '#6a3a0a', body: '#3a2a1a',
+      muted: '#8a7a6a', tagBg: '#f0e8d8', tagColor: '#6a4a2a',
+      artNumColor: '#c47a3a', insightBg: '#fdf4e8', insightBorder: '#e8d4b0',
+      trendBg: '#fdf4e8', reflBg: '#fdf4e8',
+      linkColor: '#c47a3a', footerColor: '#9a8a7a',
+    },
+  };
+  const t = themes[theme] || themes.dark;
+
+  const articlesHtml = d.articles.map((a, i) => `
+    <div style="margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid ${t.border};">
+      <div style="font-size:11px;font-weight:700;color:${t.artNumColor};letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">
+        📌 文章 ${i+1}
+      </div>
+      <h2 style="font-size:17px;font-weight:700;color:${t.title};margin-bottom:8px;line-height:1.4;">
+        ${a.url ? `<a href="${a.url}" target="_blank" rel="noopener" style="color:${t.linkColor};text-decoration:none;">${a.title}</a>` : a.title}
+      </h2>
+      <p style="font-size:14px;color:${t.body};line-height:1.8;margin-bottom:12px;">${a.summary}</p>
+      <div style="background:${t.insightBg};border-left:3px solid ${t.accent};border-radius:0 8px 8px 0;padding:10px 14px;">
+        <span style="font-size:11px;font-weight:700;color:${t.accent};letter-spacing:.06em;">💡 編者觀點</span>
+        <p style="font-size:13px;color:${t.muted};margin-top:4px;line-height:1.7;">${a.insight}</p>
+      </div>
+    </div>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${d.title}${d.edition ? ' · ' + d.edition : ''}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:${t.bg};color:${t.body};min-height:100vh;}
+    a{color:${t.linkColor};}
+  </style>
+</head>
+<body>
+
+<div style="max-width:680px;margin:0 auto;padding:20px;">
+
+  <!-- Header -->
+  <div style="background:${t.header};border-radius:16px;padding:32px 28px 28px;margin-bottom:20px;text-align:center;">
+    <div style="font-size:11px;font-weight:700;color:${t.muted};letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px;">
+      ${d.edition}${d.date ? ' · ' + d.date : ''}
+    </div>
+    <h1 style="font-size:26px;font-weight:800;color:${t.accent};letter-spacing:1px;margin-bottom:6px;">
+      ${d.title}
+    </h1>
+    ${d.subtitle ? `<p style="font-size:13px;color:${t.muted};">${d.subtitle}</p>` : ''}
+    ${d.intro ? `<p style="font-size:13px;color:${t.muted};margin-top:14px;line-height:1.7;max-width:460px;margin-left:auto;margin-right:auto;">${d.intro}</p>` : ''}
+  </div>
+
+  <!-- Articles -->
+  <div style="background:${t.cardBg};border:1px solid ${t.border};border-radius:16px;padding:28px 28px 0;">
+    ${articlesHtml}
+  </div>
+
+  <!-- 趨勢觀察 -->
+  ${d.trend ? `
+  <div style="background:${t.trendBg};border:1px solid ${t.border};border-radius:16px;padding:22px 24px;margin-top:18px;">
+    <div style="font-size:11px;font-weight:700;color:${t.accent};letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;">
+      📊 趨勢觀察
+    </div>
+    <p style="font-size:14px;color:${t.body};line-height:1.8;">${d.trend}</p>
+  </div>` : ''}
+
+  <!-- 本期反思 -->
+  ${d.reflection ? `
+  <div style="background:${t.reflBg};border:1px solid ${t.border};border-radius:16px;padding:22px 24px;margin-top:18px;">
+    <div style="font-size:11px;font-weight:700;color:${t.accent};letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;">
+      🤔 本期反思
+    </div>
+    <p style="font-size:15px;font-style:italic;color:${t.body};line-height:1.7;">「${d.reflection}」</p>
+  </div>` : ''}
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:24px 0 16px;font-size:11px;color:${t.footerColor};">
+    ${d.title}${d.edition ? ' · ' + d.edition : ''}${d.date ? ' · ' + d.date : ''}
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
+// ── 工具函式 ───────────────────────────────────────────────
+function showErr(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg; el.classList.add('visible');
+}
+
+window.downloadHtml = function() {
+  if (!generatedHtml) { alert('請先生成電子報'); return; }
+  const title = document.getElementById('nl-title').value.trim() || 'newsletter';
+  const edition = document.getElementById('nl-edition').value.trim().replace(/\s/g,'') || 'ed1';
+  const blob = new Blob([generatedHtml], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${title}-${edition}.html`;
+  a.click();
+};
+
+window.copyHtml = async function() {
+  if (!generatedHtml) { alert('請先生成電子報'); return; }
+  try {
+    await navigator.clipboard.writeText(generatedHtml);
+    const btn = event.target;
+    btn.textContent = '✅ 已複製';
+    setTimeout(() => btn.textContent = '📋 複製 HTML', 2000);
+  } catch { alert('請手動複製'); }
+};
+
+window.openInNewTab = function() {
+  if (!generatedHtml) { alert('請先生成電子報'); return; }
+  const win = window.open('', '_blank');
+  win.document.write(generatedHtml);
+  win.document.close();
+};
+
+</script>
+</body>
+</html>
